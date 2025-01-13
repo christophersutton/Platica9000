@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo } from 'react'
-import { Messages, MessageInput, MessageReactions } from '../components/Messages'
+import { Messages, MessageInput } from '../components/Messages'
 import { useSupabase } from '../hooks/useSupabase';
 import { ChannelList } from '../components/gpt/ChannelList';
 import { Outlet, useNavigate } from 'react-router-dom';

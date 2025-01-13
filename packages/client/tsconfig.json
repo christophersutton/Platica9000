@@ -13,6 +13,9 @@
       "baseUrl": ".",
       "paths": {
         "@/*": ["./src/*"]
-      }
+      },
+      "jsx": "react-jsx",
+      "allowJs": true,
+      "esModuleInterop": true
     }
   }
