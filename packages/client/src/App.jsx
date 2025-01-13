@@ -1,35 +1,58 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// src/App.jsx
+import "./index.css";
+import { useEffect, useState } from "react";
+import Auth from "./components/Auth";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Dashboard } from "./pages/Dashboard";
+import { SignIn } from "./pages/SignIn";
+import { Register } from "./pages/Register";
+import { useSupabase } from "./hooks/useSupabase";
+export default function App() {
+  const [channels, setChannels] = useState([]);
+  const [currentChannel, setCurrentChannel] = useState(null);
+  const { user, supabase } = useSupabase();
 
-function App() {
-  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (user) {
+      // Fetch channels
+      const fetchChannels = async () => {
+        const { data } = await supabase.from("channels").select("*");
+        // Add any filters you need
+        setChannels(data || []);
+        if (data?.length > 0 && !currentChannel) {
+          setCurrentChannel(data[0]);
+        }
+      };
+      fetchChannels();
+    }
+  }, [user]);
+
+  if (!user) {
+    console.log("No session");
+    return <Auth />;
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <BrowserRouter>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<SignIn />} />
+        <Route path="/signup" element={<Register />} />
 
-export default App
+        {/* Protected routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch all redirect to main dashboard */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
