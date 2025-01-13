@@ -1,19 +1,11 @@
+// components/MessageInput.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Upload } from "lucide-react";
 import { useSupabase } from "../../hooks/useSupabase";
-
-import { Attachment } from "./Messages";
-
-type FilePreview = {
-  file: File;
-  previewUrl?: string;
-};
-
-const sanitizeFileName = (fileName: string): string => {
-  return fileName
-    .replace(/[^a-zA-Z0-9.-]/g, '_')
-    .replace(/_{2,}/g, '_');
-};
+import { useFileUpload, Attachment } from "../../hooks/use-upload";
+import { FilePreview } from "./FilePreview";
+import { AttachmentList } from "./AttachmentList";
+import { Progress } from "../../components/ui/progress";
 
 interface MessageInputProps {
   channelId: string;
@@ -22,67 +14,37 @@ interface MessageInputProps {
 
 export default function MessageInput({ channelId, onSend }: MessageInputProps) {
   const [message, setMessage] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [filePreview, setFilePreview] = useState<{
+    file: File;
+    previewUrl?: string;
+    index: number;
+  } | null>(null);
+
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
-  const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const { supabase } = useSupabase();
+  const { uploading, progress, uploadFile } = useFileUpload(supabase);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.type.startsWith('image/')) {
-      const previewUrl = URL.createObjectURL(file);
-      setFilePreview({ file, previewUrl });
-    } else {
-      setFilePreview({ file });
-    }
-
-    setUploading(true);
-    try {
-      const timestamp = new Date().getTime();
-      const sanitizedName = `${timestamp}-${sanitizeFileName(file.name)}`;
-      console.log('Attempting to upload:', {
-        bucket: 'attachments',
-        path: `/private/${sanitizedName}`,
-        fileSize: file.size,
-        fileType: file.type
-      });
-
-      const { data, error } = await supabase.storage
-        .from("attachments")
-        .upload(`/private/${sanitizedName}`, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) {
-        console.error('Supabase upload error:', error);
-        throw error;
-      }
-
-      console.log('Upload successful:', data);
+    const attachment = await uploadFile(file);
+    if (attachment) {
+      const newIndex = pendingAttachments.length;
+      setPendingAttachments((prev) => [...prev, attachment]);
       
-      const { data: signedUrlData } = await supabase.storage
-        .from("attachments")
-        .createSignedUrl(data.path, 60 * 60 * 24 * 365);
-        
-      if (!signedUrlData) throw new Error("Failed to get signed URL");
-        
-      setPendingAttachments(prev => [...prev, {
-        type: "file",
-        url: signedUrlData.signedUrl,
-        name: file.name,
-      }]);
-
-    } catch (error) {
-      console.error("Error uploading file:", error);
-    } finally {
-      setUploading(false);
+      if (file.type.startsWith("image/")) {
+        setFilePreview({ 
+          file, 
+          previewUrl: URL.createObjectURL(file),
+          index: newIndex
+        });
+      }
     }
   };
 
+  // Revoke object URLs when unmounting
   useEffect(() => {
     return () => {
       if (filePreview?.previewUrl) {
@@ -91,7 +53,7 @@ export default function MessageInput({ channelId, onSend }: MessageInputProps) {
     };
   }, [filePreview]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() && pendingAttachments.length === 0) return;
     if (uploading) return;
@@ -102,54 +64,35 @@ export default function MessageInput({ channelId, onSend }: MessageInputProps) {
     setFilePreview(null);
   };
 
+  const handleRemoveAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
+    setFilePreview(null);
+    URL.revokeObjectURL(filePreview?.previewUrl || "");
+    return 
+  };
+
   return (
     <form onSubmit={handleSubmit} className="p-4 border-t">
-      {filePreview && (
-        <div className="mb-2">
-          {filePreview.previewUrl ? (
-            <div className="relative w-24 h-24">
-              <img 
-                src={filePreview.previewUrl} 
-                alt="Preview" 
-                className="object-cover w-full h-full rounded"
-              />
-              <button
-                type="button"
-                onClick={() => setFilePreview(null)}
-                className="absolute -top-2 -right-2 bg-gray-100 rounded-full p-1 hover:bg-gray-200"
-              >
-                ×
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-gray-100 p-2 rounded w-fit">
-              <span className="text-sm">{filePreview.file.name}</span>
-              <button
-                type="button"
-                onClick={() => setFilePreview(null)}
-                className="text-gray-500 hover:text-red-500"
-              >
-                ×
-              </button>
-            </div>
-          )}
-        </div>
+      {filePreview?.previewUrl && (
+        <FilePreview
+          fileName={filePreview.file.name}
+          previewUrl={filePreview.previewUrl}
+          onRemove={() => handleRemoveAttachment(filePreview.index)}
+        />
       )}
 
-      {pendingAttachments.length > 0 && (
-        <div className="flex gap-2 mb-2">
-          {pendingAttachments.map((file, index) => (
-            <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
-              <span className="text-sm truncate">{file.name}</span>
-              <button
-                type="button"
-                onClick={() => setPendingAttachments(prev => prev.filter((_, i) => i !== index))}
-                className="text-gray-500 hover:text-red-500"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+      <AttachmentList
+        attachments={pendingAttachments}
+        onRemove={handleRemoveAttachment}
+      />
+
+      {uploading && (
+        <div className="mb-4">
+          <div className="flex justify-between mb-2 text-sm text-gray-600">
+            <span>Uploading...</span>
+            <span>{progress}%</span>
+          </div>
+          <Progress value={progress} className="w-full h-2" />
         </div>
       )}
 
@@ -162,20 +105,20 @@ export default function MessageInput({ channelId, onSend }: MessageInputProps) {
           className="flex-1 p-2 border rounded"
           disabled={false}
         />
-        
+
         <input
           type="file"
-          onChange={handleFileUpload}
+          onChange={handleFileChange}
           className="hidden"
           ref={fileInputRef}
           disabled={uploading}
         />
-        
+
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className={`p-2 rounded ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+          className={`p-2 rounded ${uploading ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
         >
           <Upload className="w-5 h-5" />
         </button>
@@ -184,9 +127,9 @@ export default function MessageInput({ channelId, onSend }: MessageInputProps) {
           type="submit"
           disabled={uploading || (!message.trim() && pendingAttachments.length === 0)}
           className={`p-2 rounded bg-blue-500 text-white 
-            ${(uploading || (!message.trim() && pendingAttachments.length === 0)) 
-              ? 'opacity-50 cursor-not-allowed' 
-              : 'hover:bg-blue-600'}`}
+            ${uploading || (!message.trim() && pendingAttachments.length === 0)
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:bg-blue-600"}`}
         >
           Send
         </button>
