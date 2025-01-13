@@ -6,6 +6,10 @@ import EmojiPicker from "emoji-picker-react";
 import {  SmilePlusIcon } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 
+const isImageFile = (filename: string) => {
+  return /\.(jpg|jpeg|png|gif|webp)$/i.test(filename.toLowerCase());
+};
+
 interface ReactionMap {
   [emoji: string]: {
     count: number;
@@ -21,9 +25,16 @@ interface Reaction {
   userIds: string[];
 }
 
+export interface Attachment {
+  type: 'file';
+  url: string;
+  name: string;
+}
+
 interface Message {
   id: string;
   content: string;
+  attachments?: Attachment[];
   users?: {
     avatar_url?: string;
     email?: string;
@@ -62,6 +73,8 @@ interface DatabaseMessage {
 const Message = memo(
   ({ message, currentUser, onAddReaction, onRemoveReaction }: MessageProps) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [loadingImages, setLoadingImages] = useState<{[key: string]: boolean}>({});
+    const [imageLoadError, setImageLoadError] = useState<{[key: string]: boolean}>({});
 
     return (
       <div className="message relative">
@@ -76,7 +89,48 @@ const Message = memo(
           />
           <div>
             <div className="font-medium">{message.users?.full_name}</div>
-            <div>{message.content}</div>
+            {message.content && <div>{message.content}</div>}
+            
+            {/* Add attachment rendering */}
+            {message.attachments?.map((attachment, index) => (
+              <div key={index} className="mt-2">
+                {attachment.type === 'file' && (
+                  isImageFile(attachment.name) ? (
+                    imageLoadError[attachment.url] ? (
+                      <div className="text-red-500">
+                        Failed to load image: {attachment.name}
+                      </div>
+                    ) : (
+                      <div className="group relative">
+                        <img 
+                          src={attachment.url}
+                          alt={attachment.name}
+                          className="max-w-sm rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => window.open(attachment.url, '_blank')}
+                          onError={(e) => {
+                            console.error('Image load error:', attachment.url);
+                            setImageLoadError(prev => ({ ...prev, [attachment.url]: true }));
+                          }}
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <a 
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {attachment.name}
+                    </a>
+                  )
+                )}
+              </div>
+            ))}
+
             <div className="flex gap-1 mt-1 items-center">
               {/* Reaction buttons */}
               {message?.reactions?.map((reaction) => (
@@ -340,12 +394,13 @@ export default function Messages() {
   // -------------------
   // Sending and reacting
   // -------------------
-  const handleSend = async (messageContent) => {
+  const handleSend = async (messageContent: string, attachments?: Attachment[]) => {
     try {
       const { error } = await supabase.from("messages").insert({
         channel_id: channelId,
         content: messageContent,
         user_id: currentUser?.id,
+        attachments: attachments // Make sure your database table has an attachments column
       });
       if (error) throw error;
     } catch (err) {
@@ -441,7 +496,12 @@ export default function Messages() {
   // -------------------
   // Render
   // -------------------
-  if (initialLoading) return <div>Loading messages...</div>;
+  if (initialLoading) return (
+    <div className="flex-1 flex items-center justify-center h-full">
+      <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin opacity-0 transition-opacity duration-300 delay-300" 
+           style={{ opacity: initialLoading ? 1 : 0 }} />
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -470,7 +530,7 @@ export default function Messages() {
         </div>
       </ScrollArea>
 
-      <MessageInput onSend={handleSend} channelId={channelId} />
+      <MessageInput onSend={handleSend} channelId={channelId || ""} />
     </div>
   );
 }
