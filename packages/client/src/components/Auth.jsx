@@ -12,7 +12,6 @@ export default function AuthComponent() {
           supabaseClient={supabase}
           appearance={{ theme: ThemeSupa }}
           theme="dark"
-          providers={["github", "google"]}
         />
       </div>
     </div>
