@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Smile } from 'lucide-react'
 import { useSupabase } from '../../hooks/useSupabase';
 
@@ -30,10 +30,38 @@ export default function MessageReactions({ message, currentUser }) {
       })
   }
 
+  useEffect(() => {
+    if (!message) return;
+
+    
+    // Subscribe to reactions changes for this specific message
+    const subscription = supabase
+      .channel(`reactions:${message.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reactions',
+          filter: `message_id=eq.${message.id}`
+        },
+        (payload) => {
+          console.log('Reactions changed:', payload);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [message.id, supabase]);
+   
+  
+
   return (
     <div className="relative">
       <div className="flex gap-1">
-        {message.reactions?.map(reaction => (
+        {message?.reactions?.map(reaction => (
           <button
             key={`${reaction.emoji}-${reaction.count}`}
             onClick={() => reaction.hasReacted ? 

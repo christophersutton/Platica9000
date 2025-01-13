@@ -1,13 +1,12 @@
 // src/App.jsx
 import "./index.css";
-import { useEffect } from "react";
 import Auth from "./components/Auth";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Dashboard } from "./pages/Dashboard";
-import { SignIn } from "./pages/SignIn";
 import { Register } from "./pages/Register";
 import { useSupabase } from "./hooks/useSupabase";
+import { Messages } from "./components/Messages";
 
 export default function App() {
   const { user, loading } = useSupabase();
@@ -46,7 +45,10 @@ export default function App() {
               <Dashboard />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<div className="p-4">Select a channel</div>} />
+          <Route path="channels/:channelId" element={<Messages />} />
+        </Route>
 
         {/* Redirect unmatched routes to appropriate destination based on auth state */}
         <Route 

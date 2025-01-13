@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { useSupabase } from "../../hooks/useSupabase";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSupabase } from '../../hooks/useSupabase';
+
 
 export function ChannelList() {
   const { supabase } = useSupabase();
@@ -7,72 +9,56 @@ export function ChannelList() {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
-  
-  const handleSubmit = (channelName) => {
-    console.log(channelName);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      const { data, error } = supabase
+      const { data, error } = await supabase
         .from("channels")
-        .insert([{ name: channelName }])
+        .insert([{ name: newChannelName }])
         .select()
         .single();
-
-      console.log(data);
 
       if (error) {
         throw error;
       }
 
-      // No need to manually update state since subscription will handle it
-      return data;
+      setIsAdding(false);
+      setNewChannelName("");
     } catch (error) {
       console.error("Error adding channel:", error.message);
-      throw error;
     }
   };
 
   useEffect(() => {
-    let subscription;
-
     const fetchChannels = async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("channels")
         .select("*")
         .order("created_at", { ascending: false });
-      console.log(data);
+        
       if (!error) {
-        setChannels(data || []);
+        setChannels(data);
       }
       setLoading(false);
     };
 
     fetchChannels();
 
-    // Subscribe to changes in the 'channels' table
-    const channel = supabase
-      .channel("channels-all")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "channels" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setChannels((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === "UPDATE") {
-            setChannels((prev) =>
-              prev.map((ch) => (ch.id === payload.new.id ? payload.new : ch))
-            );
-          } else if (payload.eventType === "DELETE") {
-            setChannels((prev) =>
-              prev.filter((ch) => ch.id !== payload.old.id)
-            );
-          }
-        }
-      )
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('public:channels')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'channels' 
+      }, fetchChannels)
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -80,13 +66,10 @@ export function ChannelList() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-2">FOO</h2>
+      <h2 className="text-xl font-bold mb-2">Channels</h2>
       <div className="mb-4">
         {isAdding ? (
-          <form
-            onSubmit={handleSubmit}
-            className="flex gap-2"
-          >
+          <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               type="text"
               value={newChannelName}
@@ -98,7 +81,7 @@ export function ChannelList() {
             />
             <button
               type="submit"
-              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-60 hover:text-blue-900"
+              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               Add
             </button>
@@ -106,7 +89,7 @@ export function ChannelList() {
         ) : (
           <button
             onClick={() => setIsAdding(true)}
-            className="w-full px-3 py-1 text-sm border rounded hover:bg-gray-100 flex items-center gap-2"
+            className="w-full px-3 py-1 text-sm border rounded hover:bg-gray-700 flex items-center gap-2"
           >
             <span>+</span> Add Channel
           </button>
@@ -114,8 +97,15 @@ export function ChannelList() {
       </div>
       <ul>
         {channels.map((channel) => (
-          <li key={channel.id}>
-            #{channel.name} ({channel.description})
+          <li 
+            key={channel.id}
+            className="px-3 py-2 hover:bg-gray-700 rounded cursor-pointer transition-colors duration-150 mb-1"
+            onClick={() => navigate(`/channels/${channel.id}`)}
+          >
+            <p className="text-gray-300">#{channel.name}</p>
+            {channel.description && (
+              <span className="text-gray-500 text-sm ml-2">({channel.description})</span>
+            )}
           </li>
         ))}
       </ul>
