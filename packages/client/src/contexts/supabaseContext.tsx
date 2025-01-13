@@ -1,14 +1,31 @@
 // contexts/SupabaseContext.tsx
-import { createContext, useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import React, { createContext, useEffect, useState } from 'react'
+import { createClient, SupabaseClient, User } from '@supabase/supabase-js'
 
 // Create a single instance of the Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase URL or anon key is not set");
+}
+
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  supabaseUrl,
+  supabaseAnonKey
 )
 
-export const Context = createContext()
+type SupabaseContextType = {
+  supabase: SupabaseClient
+  user: User | null
+  loading: boolean
+}
+
+export const Context = createContext<SupabaseContextType>({ 
+  supabase,
+  user: null,
+  loading: true 
+});
 
 export function SupabaseProvider({ children }) {
   const [user, setUser] = useState(null)

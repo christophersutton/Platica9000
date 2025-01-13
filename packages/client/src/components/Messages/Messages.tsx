@@ -34,7 +34,7 @@ interface Message {
 
 interface MessageProps {
   message: Message;
-  currentUser: any;
+  currentUser?: any;
   onAddReaction: (messageId: string, emoji: string) => void;
   onRemoveReaction: (messageId: string, emoji: string) => void;
 }
@@ -180,7 +180,7 @@ export default function Messages() {
               acc[r.emoji].userIds.add(r.user_id);
             }
             // Check if current user has reacted
-            if (r.user_id === currentUser.id) {
+            if (r.user_id === currentUser?.id) {
               acc[r.emoji].hasReacted = true;
             }
             return acc;
@@ -200,7 +200,7 @@ export default function Messages() {
           reactions: reactionsArray,
         };
       }),
-    [currentUser.id]
+    [currentUser?.id]
   );
 
   const fetchMessages = useCallback(async () => {
@@ -345,7 +345,7 @@ export default function Messages() {
       const { error } = await supabase.from("messages").insert({
         channel_id: channelId,
         content: messageContent,
-        user_id: currentUser.id,
+        user_id: currentUser?.id,
       });
       if (error) throw error;
     } catch (err) {
@@ -361,6 +361,8 @@ export default function Messages() {
           if (msg.id !== messageId) return msg;
           const newReactions = [...(msg.reactions || [])];
           const existing = newReactions.find((r) => r.emoji === emoji);
+          // Skip if no current user
+          if (!currentUser?.id) return msg;
 
           if (existing) {
             if (!existing.hasReacted) {
@@ -384,7 +386,7 @@ export default function Messages() {
       try {
         const { error } = await supabase.from("reactions").upsert({
           message_id: messageId,
-          user_id: currentUser.id,
+          user_id: currentUser?.id,
           emoji,
         });
         if (error) throw error;
@@ -393,7 +395,7 @@ export default function Messages() {
         await fetchMessages(); // revert to server state if error
       }
     },
-    [currentUser.id, supabase, fetchMessages]
+    [currentUser?.id, supabase, fetchMessages]
   );
 
   const removeReaction = useCallback(
@@ -410,7 +412,7 @@ export default function Messages() {
                   ...r,
                   count: r.count - 1,
                   hasReacted: false,
-                  userIds: r.userIds.filter((id) => id !== currentUser.id),
+                  userIds: r.userIds.filter((id) => id !== currentUser?.id),
                 };
               }
               return r;
@@ -424,7 +426,7 @@ export default function Messages() {
       try {
         const { error } = await supabase.from("reactions").delete().match({
           message_id: messageId,
-          user_id: currentUser.id,
+          user_id: currentUser?.id,
           emoji,
         });
         if (error) throw error;
@@ -433,7 +435,7 @@ export default function Messages() {
         await fetchMessages(); // revert to server state if error
       }
     },
-    [currentUser.id, supabase, fetchMessages]
+    [currentUser?.id, supabase, fetchMessages]
   );
 
   // -------------------
