@@ -77,7 +77,6 @@ export function ChannelList() {
               placeholder="Channel name..."
               className="flex-1 px-2 py-1 text-sm border rounded text-black"
               autoFocus
-              onBlur={() => setIsAdding(false)}
             />
             <button
               type="submit"
