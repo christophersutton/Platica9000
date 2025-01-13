@@ -1,11 +1,12 @@
 // src/App.jsx
 import "./index.css";
 import Auth from "./components/Auth";
+import React from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Dashboard } from "./pages/Dashboard";
 import { Register } from "./pages/Register";
-import { useSupabase } from "./hooks/useSupabase";
+import { useSupabase } from "./hooks/use-supabase";
 import { Messages } from "./components/Messages";
 
 export default function App() {

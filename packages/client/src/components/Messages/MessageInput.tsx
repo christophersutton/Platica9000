@@ -1,7 +1,7 @@
 // components/MessageInput.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Upload } from "lucide-react";
-import { useSupabase } from "../../hooks/useSupabase";
+import { useSupabase } from "../../hooks/use-supabase";
 import { useFileUpload, Attachment } from "../../hooks/use-upload";
 import { FilePreview } from "./FilePreview";
 import { AttachmentList } from "./AttachmentList";

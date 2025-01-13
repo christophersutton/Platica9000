@@ -1,7 +1,9 @@
 // src/components/Auth.jsx
+
+import React from "react";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { useSupabase } from "../hooks/useSupabase";
+import { useSupabase } from "../hooks/use-supabase";
 export default function AuthComponent() {
   const { supabase } = useSupabase();
   return (

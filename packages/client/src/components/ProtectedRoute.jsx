@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { useSupabase } from '../hooks/useSupabase';
+import { useSupabase } from '../hooks/use-supabase';
 
 export function ProtectedRoute({ children }) {
   const { user, loading } = useSupabase();

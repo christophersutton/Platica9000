@@ -88,6 +88,7 @@ export default function MessagesList({ tableFilter }) {
 
   return (
     <div className="h-full flex flex-col">
+      <HubsPresence />
       <div className="flex-1 overflow-y-auto px-4 py-2">
         {messages.map((msg) => (
           <div key={msg.id} className="mb-2">

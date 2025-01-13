@@ -1,11 +1,21 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSupabase } from '../../hooks/useSupabase';
+import { useSupabase } from '../../hooks/use-supabase';
 
+interface Channel {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+}
 
-export function ChannelList() {
+type ChannelListProps = {
+  onChannelSelect: (channel: { id: string; name: string }) => void;
+};
+
+export function ChannelList({ onChannelSelect }: ChannelListProps) {
   const { supabase } = useSupabase();
-  const [channels, setChannels] = useState([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
@@ -40,7 +50,9 @@ export function ChannelList() {
         .order("created_at", { ascending: false });
         
       if (!error) {
-        setChannels(data);
+        setChannels(data || []);
+      } else {
+        console.error("Error fetching channels:", error.message);
       }
       setLoading(false);
     };

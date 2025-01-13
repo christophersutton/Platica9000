@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useSupabase } from '../hooks/useSupabase';
+import { useSupabase } from '../hooks/use-supabase';
 
 export function SignOutButton() {
   const { supabase } = useSupabase();
