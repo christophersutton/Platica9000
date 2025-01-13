@@ -2,17 +2,17 @@
 import { createContext, useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
+// Create a single instance of the Supabase client
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+)
 
 export const Context = createContext()
 
 export function SupabaseProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-
-  const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-  )
 
   useEffect(() => {
     // Check active sessions and subscribe to auth changes

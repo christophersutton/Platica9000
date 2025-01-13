@@ -4,22 +4,12 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "../components/ui/resizable";
-
-import { supabase } from "@/lib/supabase";
+import { ChannelList } from "../components/gpt/ChannelList";
+import { useSupabase } from "../hooks/useSupabase";
 export const WorkspaceLayout = () => {
-  const [channels, setChannels] = useState([]);
+  
   const { supabase, user } = useSupabase();
 
-  useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
-
-    const fetchChannels = async () => {
-      const { data } = await supabase.from("channels").select("*");
-      setChannels(data ?? []);
-    };
-
-    fetchChannels();
-  }, [user]);
 
   return (
     <div className="h-screen w-full">
@@ -38,21 +28,7 @@ export const WorkspaceLayout = () => {
                   <h2 className="font-semibold">Organization</h2>
                 </div>
                 <div className="p-4 space-y-2">
-                  <div className="space-y-2">
-                    {channels.map((channel) => (
-                      <div
-                        key={channel.id}
-                        className="p-3 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
-                      >
-                        <div className="font-medium"># {channel.name}</div>
-                        {channel.description && (
-                          <div className="text-sm text-gray-600">
-                            {channel.description}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <ChannelList />
                 </div>
               </div>
             </div>
