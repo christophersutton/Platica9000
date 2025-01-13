@@ -3,7 +3,8 @@ import { useParams } from "react-router-dom";
 import MessageInput from "./MessageInput";
 import { useSupabase } from "../../hooks/useSupabase";
 import EmojiPicker from "emoji-picker-react";
-import { SmileIcon, SmilePlusIcon } from "lucide-react";
+import {  SmilePlusIcon } from "lucide-react";
+import { ScrollArea } from "../ui/scroll-area";
 
 interface ReactionMap {
   [emoji: string]: {
@@ -155,6 +156,7 @@ export default function Messages() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [channelName, setChannelName] = useState<string>("");
 
   // -------------------
   // Data fetching
@@ -236,6 +238,20 @@ export default function Messages() {
     }
   }, [channelId, supabase, processMessages]);
 
+  const fetchChannelName = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("channels")
+      .select("name")
+      .eq("id", channelId)
+      .single();
+
+    if (!error && data) {
+      setChannelName(data.name);
+    } else {
+      console.error("Error fetching channel name:", error);
+    }
+  }, [channelId, supabase]);
+
   // -------------------
   // Scroll logic
   // -------------------
@@ -286,6 +302,7 @@ export default function Messages() {
     // Reset for new channel
     isInitialFetch.current = true;
     fetchMessages();
+    fetchChannelName();
 
     const messagesSub = supabase
       .channel(`messages:${channelId}`)
@@ -318,7 +335,7 @@ export default function Messages() {
       supabase.removeChannel(messagesSub);
       supabase.removeChannel(reactionsSub);
     };
-  }, [channelId, fetchMessages, supabase]);
+  }, [channelId, fetchMessages, fetchChannelName, supabase]);
 
   // -------------------
   // Sending and reacting
@@ -426,22 +443,30 @@ export default function Messages() {
 
   return (
     <div className="flex flex-col h-full">
-      <div
+      <ScrollArea 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4"
-        onScroll={handleScroll}
-      ></div>
-
-      {messages.map((message) => (
-        <Message
-          key={message.id}
-          message={message}
-          currentUser={currentUser}
-          onAddReaction={addReaction}
-          onRemoveReaction={removeReaction}
-        />
-      ))}
-      <div ref={bottomRef} />
+        className="flex-1"
+        onScroll={(event) => handleScroll()}
+      >
+        <div className="flex flex-col h-full p-4">
+          {messages.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+              <p className="text-lg">Be the first to start chatting in #{channelName}</p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <Message
+                key={message.id}
+                message={message}
+                currentUser={currentUser}
+                onAddReaction={addReaction}
+                onRemoveReaction={removeReaction}
+              />
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </ScrollArea>
 
       <MessageInput onSend={handleSend} channelId={channelId} />
     </div>
