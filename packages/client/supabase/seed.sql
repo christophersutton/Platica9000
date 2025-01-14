@@ -364,5 +364,18 @@ from (
 order by sort_order
 limit 4;
 
+-- ==================================================
+-- SECRETARIES
+-- Create AI assistants for various tasks
+-- ==================================================
+insert into secretaries (id, organization_id, name, avatar_url, capabilities, settings, created_at) values
+(uuid_generate_v4(), 
+ (select id from organizations where name = 'Acme Corporation' limit 1),
+ 'Minutes Secretary',
+ 'https://example.com/avatars/minutes-secretary.png',
+ '["minutes_management", "meeting_summaries"]',
+ '{"auto_generated": true}',
+ now());
+
 -- That’s it for a large seed. 
 -- Adjust as needed to match your data volume and usage patterns.

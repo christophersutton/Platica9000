@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Register } from "./pages/Register";
 import { useSupabase } from "./hooks/use-supabase";
 import { Messages } from "./components/Messages";
+import { Secretary } from "./components/Secretary";
 
 export default function App() {
   const { user, loading } = useSupabase();
@@ -49,6 +50,7 @@ export default function App() {
         >
           <Route index element={<div className="p-4">Select a channel</div>} />
           <Route path="channels/:channelId" element={<Messages />} />
+          <Route path="secretary" element={<Secretary />} />
         </Route>
 
         {/* Redirect unmatched routes to appropriate destination based on auth state */}

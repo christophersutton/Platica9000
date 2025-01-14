@@ -11,5 +11,13 @@
   "description": "",
   "devDependencies": {
     "supabase": "^2.2.1"
+  },
+  "dependencies": {
+    "@pinecone-database/pinecone": "^4.1.0",
+    "@supabase/supabase-js": "^2.47.13",
+    "dotenv": "^16.4.7",
+    "openai": "^4.78.1",
+    "postgres": "^3.4.5",
+    "uuid": "^11.0.5"
   }
 }

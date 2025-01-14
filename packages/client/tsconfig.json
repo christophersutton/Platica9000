@@ -15,8 +15,9 @@
       "paths": {
         "@/*": ["./src/*"]
       },
-      "jsx": "react-jsx",
+      "jsx": "react",
       "allowJs": true,
-      "esModuleInterop": true
+      "esModuleInterop": true,
+      "strict": true
     }
   }

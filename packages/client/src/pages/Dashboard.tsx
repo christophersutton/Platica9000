@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { Messages, MessageInput } from "../components/Messages/";
 import { useSupabase } from "../hooks/use-supabase";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { SignOutButton } from "../components/SignOutButton";
 import React from "react";
 import { GlobalPresence } from "../components/GlobalUserPresence";
 import { ChannelList } from "../components/gpt/ChannelList";
+import { Secretary } from "../components/secretary";
 const ChannelItem = memo<{
   channel: { id: string; name: string };
   isActive: boolean;
@@ -58,11 +59,12 @@ export function Dashboard() {
           <ChannelList onChannelSelect={handleChannelSelect} />
         </div>
         <div className="mt-auto">
-          {user && (
-            <GlobalPresence
-              
-            />
-          )}
+          <Link 
+            to="/secretary" 
+            className="block w-full text-center mb-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors duration-200 text-white font-medium"
+          >
+            Ask the Secretary
+          </Link>
           <SignOutButton />
         </div>
       </div>
