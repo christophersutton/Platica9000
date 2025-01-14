@@ -4,7 +4,7 @@ import { useSupabase } from "../hooks/use-supabase";
 import { Outlet, useNavigate } from "react-router-dom";
 import { SignOutButton } from "../components/SignOutButton";
 import React from "react";
-import { GlobalUserStatus } from "../components/GlobalUserPresence";
+import { GlobalPresence } from "../components/GlobalUserPresence";
 import { ChannelList } from "../components/gpt/ChannelList";
 const ChannelItem = memo<{
   channel: { id: string; name: string };
@@ -59,12 +59,8 @@ export function Dashboard() {
         </div>
         <div className="mt-auto">
           {user && (
-            <GlobalUserStatus
-              user={{
-                id: user.id,
-                name: user.user_metadata?.name || user.email,
-                avatar_url: user.user_metadata?.avatar_url,
-              }}
+            <GlobalPresence
+              
             />
           )}
           <SignOutButton />

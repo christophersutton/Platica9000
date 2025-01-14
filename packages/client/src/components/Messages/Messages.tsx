@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams } from "react-router-dom";
 import MessageInput from "./MessageInput";
-import { useSupabase } from "../../hooks/useSupabase";
+import { useSupabase } from "../../hooks/use-supabase";
 import EmojiPicker from "emoji-picker-react";
-import {  SmilePlusIcon } from "lucide-react";
+import { SmilePlusIcon } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
-
+import { HubPresence } from "../hubs/HubPresence";
 const isImageFile = (filename: string) => {
   return /\.(jpg|jpeg|png|gif|webp)$/i.test(filename.toLowerCase());
 };
@@ -26,7 +26,7 @@ interface Reaction {
 }
 
 export interface Attachment {
-  type: 'file';
+  type: "file";
   url: string;
   name: string;
 }
@@ -73,8 +73,12 @@ interface DatabaseMessage {
 const Message = memo(
   ({ message, currentUser, onAddReaction, onRemoveReaction }: MessageProps) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [loadingImages, setLoadingImages] = useState<{[key: string]: boolean}>({});
-    const [imageLoadError, setImageLoadError] = useState<{[key: string]: boolean}>({});
+    const [loadingImages, setLoadingImages] = useState<{
+      [key: string]: boolean;
+    }>({});
+    const [imageLoadError, setImageLoadError] = useState<{
+      [key: string]: boolean;
+    }>({});
 
     return (
       <div className="message relative">
@@ -90,44 +94,56 @@ const Message = memo(
           <div>
             <div className="font-medium">{message.users?.full_name}</div>
             {message.content && <div>{message.content}</div>}
-            
+
             {/* Add attachment rendering */}
             {message.attachments?.map((attachment, index) => (
               <div key={index} className="mt-2">
-                {attachment.type === 'file' && (
-                  isImageFile(attachment.name) ? (
+                {attachment.type === "file" &&
+                  (isImageFile(attachment.name) ? (
                     imageLoadError[attachment.url] ? (
                       <div className="text-red-500">
                         Failed to load image: {attachment.name}
                       </div>
                     ) : (
                       <div className="group relative">
-                        <img 
+                        <img
                           src={attachment.url}
                           alt={attachment.name}
                           className="max-w-sm rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => window.open(attachment.url, '_blank')}
+                          onClick={() => window.open(attachment.url, "_blank")}
                           onError={(e) => {
-                            console.error('Image load error:', attachment.url);
-                            setImageLoadError(prev => ({ ...prev, [attachment.url]: true }));
+                            console.error("Image load error:", attachment.url);
+                            setImageLoadError((prev) => ({
+                              ...prev,
+                              [attachment.url]: true,
+                            }));
                           }}
                         />
                       </div>
                     )
                   ) : (
-                    <a 
+                    <a
                       href={attachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded hover:bg-gray-200"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
                       </svg>
                       {attachment.name}
                     </a>
-                  )
-                )}
+                  ))}
               </div>
             ))}
 
@@ -394,13 +410,16 @@ export default function Messages() {
   // -------------------
   // Sending and reacting
   // -------------------
-  const handleSend = async (messageContent: string, attachments?: Attachment[]) => {
+  const handleSend = async (
+    messageContent: string,
+    attachments?: Attachment[]
+  ) => {
     try {
       const { error } = await supabase.from("messages").insert({
         channel_id: channelId,
         content: messageContent,
         user_id: currentUser?.id,
-        attachments: attachments // Make sure your database table has an attachments column
+        attachments: attachments, // Make sure your database table has an attachments column
       });
       if (error) throw error;
     } catch (err) {
@@ -496,16 +515,20 @@ export default function Messages() {
   // -------------------
   // Render
   // -------------------
-  if (initialLoading) return (
-    <div className="flex-1 flex items-center justify-center h-full">
-      <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin opacity-0 transition-opacity duration-300 delay-300" 
-           style={{ opacity: initialLoading ? 1 : 0 }} />
-    </div>
-  );
+  if (initialLoading || !currentUser)
+    return (
+      <div className="flex-1 flex items-center justify-center h-full">
+        <div
+          className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin opacity-0 transition-opacity duration-300 delay-300"
+          style={{ opacity: initialLoading ? 1 : 0 }}
+        />
+      </div>
+    );
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea 
+      <HubPresence hubId={channelId || ""} />
+      <ScrollArea
         ref={messagesContainerRef}
         className="flex-1"
         onScroll={(event) => handleScroll()}
@@ -513,7 +536,9 @@ export default function Messages() {
         <div className="flex flex-col h-full p-4">
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-              <p className="text-lg">Be the first to start chatting in #{channelName}</p>
+              <p className="text-lg">
+                Be the first to start chatting in #{channelName}
+              </p>
             </div>
           ) : (
             messages.map((message) => (

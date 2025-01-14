@@ -1,6 +1,6 @@
 // src/App.jsx
 import "./index.css";
-import Auth from "./components/Auth";
+import AuthComponent from "./components/Auth";
 import React from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -28,7 +28,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            user ? <Navigate to="/" replace /> : <Auth />
+            user ? <Navigate to="/" replace /> : <AuthComponent />
           }
         />
         <Route

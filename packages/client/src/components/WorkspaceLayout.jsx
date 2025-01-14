@@ -33,6 +33,7 @@ export const WorkspaceLayout = () => {
               </div>
             </div>
             <div className="mt-auto">
+              <GlobalUserStatus user={user} />
               <CurrentUser />
             </div>
           </ResizablePanel>
