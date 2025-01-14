@@ -50,7 +50,7 @@ where (
 -- One or two channels per org
 -- ==================================================
 insert into channels (id, organization_id, name, description, message_expiration_hours, created_at, settings)
-select uuid_generate_v4(), org.id, c.name, c.desc, c.msg_expiration, now(), '{}'
+select uuid_generate_v4(), org.id, c.name, c.description, c.msg_expiration, now(), '{}'
 from (
     values
         ('Acme Corporation', 'general', 'General Chat', 168),
@@ -60,7 +60,7 @@ from (
         ('Tech Innovators', 'engineering', 'Engineering Channel', 168),
         ('Green Earth Nonprofit', 'volunteers', 'Volunteer Coordination', 168),
         ('Space Explorers Club', 'mission-control', 'Mission Control', 168)
-) as c(org_name, name, desc, msg_expiration)
+) as c(org_name, name, description, msg_expiration)
 join organizations org on org.name = c.org_name;
 
 -- ==================================================
@@ -232,9 +232,9 @@ extra_insert as (
         now() as created_at,
         now() as updated_at,
         sc.channel_id,
-        null as room_id,
-        null as chat_id,
-        null as parent_id,
+        null::uuid as room_id,
+        null::uuid as chat_id,
+        null::uuid as parent_id,
         '[]'::jsonb as attachments
     from extra_msg_list eml
     cross join some_channels sc
@@ -338,28 +338,31 @@ c as (
 r as (
     select ro.id as room_id, ro.organization_id from rooms ro
 )
--- We’ll do a few channel assignments and a few room assignments
 insert into secretary_assignments (secretary_id, channel_id, room_id, created_at)
-select
-    s.sec_id,
-    c.channel_id,
-    null,
-    now()
-from s
-join c on c.organization_id = s.organization_id
-order by random()
-limit 2;
-
-insert into secretary_assignments (secretary_id, channel_id, room_id, created_at)
-select
-    s.sec_id,
-    null,
-    r.room_id,
-    now()
-from s
-join r on r.organization_id = s.organization_id
-order by random()
-limit 2;
+-- Channel assignments
+select sec_id, channel_id, room_id, created_at
+from (
+    select
+        s.sec_id,
+        c.channel_id,
+        null as room_id,
+        now() as created_at,
+        random() as sort_order
+    from s
+    join c on c.organization_id = s.organization_id
+    union all
+    -- Room assignments
+    select
+        s.sec_id,
+        null as channel_id,
+        r.room_id,
+        now() as created_at,
+        random() as sort_order
+    from s
+    join r on r.organization_id = s.organization_id
+) assignments
+order by sort_order
+limit 4;
 
 -- That’s it for a large seed. 
 -- Adjust as needed to match your data volume and usage patterns.

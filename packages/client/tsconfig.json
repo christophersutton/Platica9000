@@ -1,6 +1,7 @@
 {
     "files": [],
     "module": "es2022",
+    "moduleResolution": "bundler",
     "references": [
       {
         "path": "./tsconfig.app.json"

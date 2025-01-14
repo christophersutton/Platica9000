@@ -81,13 +81,42 @@ create table "public"."messages" (
 
 alter table "public"."messages" enable row level security;
 
+create table "public"."rooms" (
+    "id" uuid not null default uuid_generate_v4(),
+    "organization_id" uuid,
+    "name" text not null,
+    "description" text,
+    "created_at" timestamp with time zone default now(),
+    "ended_at" timestamp with time zone,
+    "created_by" uuid,
+    "settings" jsonb default '{}'::jsonb
+);
+
+
+alter table "public"."rooms" enable row level security;
+
+create table "public"."secretaries" (
+    "id" uuid not null default uuid_generate_v4(),
+    "organization_id" uuid,
+    "name" text not null,
+    "avatar_url" text,
+    "capabilities" jsonb default '[]'::jsonb,
+    "settings" jsonb default '{}'::jsonb,
+    "created_at" timestamp with time zone default now()
+);
+
+
+alter table "public"."secretaries" enable row level security;
+
 create table "public"."minutes" (
     "id" uuid not null default uuid_generate_v4(),
     "channel_id" uuid,
+    "room_id" uuid,
     "content" text not null,
     "created_at" timestamp with time zone default now(),
     "time_period_start" timestamp with time zone not null,
-    "time_period_end" timestamp with time zone not null
+    "time_period_end" timestamp with time zone not null,
+    "created_by" uuid
 );
 
 
@@ -132,33 +161,6 @@ create table "public"."room_members" (
 
 
 alter table "public"."room_members" enable row level security;
-
-create table "public"."rooms" (
-    "id" uuid not null default uuid_generate_v4(),
-    "organization_id" uuid,
-    "name" text not null,
-    "description" text,
-    "created_at" timestamp with time zone default now(),
-    "ended_at" timestamp with time zone,
-    "created_by" uuid,
-    "settings" jsonb default '{}'::jsonb
-);
-
-
-alter table "public"."rooms" enable row level security;
-
-create table "public"."secretaries" (
-    "id" uuid not null default uuid_generate_v4(),
-    "organization_id" uuid,
-    "name" text not null,
-    "avatar_url" text,
-    "capabilities" jsonb default '[]'::jsonb,
-    "settings" jsonb default '{}'::jsonb,
-    "created_at" timestamp with time zone default now()
-);
-
-
-alter table "public"."secretaries" enable row level security;
 
 create table "public"."secretary_assignments" (
     "secretary_id" uuid,
@@ -325,6 +327,18 @@ alter table "public"."messages" validate constraint "messages_user_id_fkey";
 alter table "public"."minutes" add constraint "minutes_channel_id_fkey" FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE not valid;
 
 alter table "public"."minutes" validate constraint "minutes_channel_id_fkey";
+
+alter table "public"."minutes" add constraint "minutes_room_id_fkey" FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE not valid;
+
+alter table "public"."minutes" validate constraint "minutes_room_id_fkey";
+
+alter table "public"."minutes" add constraint "minutes_created_by_fkey" FOREIGN KEY (created_by) REFERENCES secretaries(id) ON DELETE SET NULL not valid;
+
+alter table "public"."minutes" validate constraint "minutes_created_by_fkey";
+
+alter table "public"."minutes" add constraint "minutes_check" CHECK ((((channel_id IS NOT NULL))::integer + ((room_id IS NOT NULL))::integer) = 1) not valid;
+
+alter table "public"."minutes" validate constraint "minutes_check";
 
 alter table "public"."organization_members" add constraint "organization_members_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE not valid;
 
