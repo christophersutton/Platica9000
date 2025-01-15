@@ -2,7 +2,7 @@ import { Pinecone } from '@pinecone-database/pinecone';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from "openai";
 
-// Initialize OpenAI client for embeddings
+// Initialize OpenAI client for chat
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -26,6 +26,8 @@ const corsHeaders = {
 // Constants for relevance thresholds
 const RELEVANCE_THRESHOLD_GPT = 0.6;   // Threshold for including in GPT context
 const RELEVANCE_THRESHOLD_CLIENT = 0.75; // Threshold for sending back to client
+const INDEX_NAME = "minutes";
+let INDEX_HOST: string;
 
 // Types for request body
 interface ChatMessage {
@@ -50,6 +52,34 @@ interface MinuteMetadata {
   time_period_start?: string;
 }
 
+// Helper function to process content
+function processContent(content: string | null): string {
+  if (!content) return '';
+  // Replace literal \n with actual newlines, handle double-escaped if present
+  return content
+    .replace(/\\n/g, '\n')  // Replace \n with newline
+    .replace(/\n\s*\n\s*\n/g, '\n\n')  // Normalize multiple newlines to double
+    .trim();
+}
+
+// Get the index host on startup
+async function getIndexHost() {
+  const response = await fetch(`https://api.pinecone.io/indexes/${INDEX_NAME}`, {
+    headers: {
+      'Api-Key': process.env.PINECONE_API_KEY!,
+      'X-Pinecone-API-Version': '2025-01'
+    }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to get index host');
+  }
+  const indexData = await response.json();
+  INDEX_HOST = indexData.host;
+}
+
+// Initialize index host
+getIndexHost().catch(console.error);
+
 const server = Bun.serve({
   port: process.env.PORT || 3000,
   async fetch(req) {
@@ -59,72 +89,104 @@ const server = Bun.serve({
     }
 
     try {
-      // Validate environment variables early
+      // Validate environment variables and index host
       const openaiKey = process.env.OPENAI_API_KEY;
       const pineconeKey = process.env.PINECONE_API_KEY;
       
-      if (!openaiKey || !pineconeKey) {
-        throw new Error('Missing required environment variables');
+      if (!openaiKey || !pineconeKey || !INDEX_HOST) {
+        throw new Error('Missing required configuration');
       }
 
       const { query, history = [], previousDocIds = [] } = await req.json() as RequestBody;
       
-      const embedding = await openai.embeddings.create({
-        model: "text-embedding-3-large",
-        input: query,
-      });
-
-      const index = pinecone.index('minutes');
+      console.log(`\nProcessing query: "${query}"`);
+      console.log('Previous doc IDs:', previousDocIds);
       
-      const queryResponse = await index.query({
-        vector: embedding.data[0].embedding,
-        topK: 5,  // Increased to 5
-        includeMetadata: true,
+      // Search using Pinecone's integrated search
+      console.log('\nExecuting Pinecone integrated search...');
+      const searchResponse = await fetch(`https://${INDEX_HOST}/records/namespaces/minutes/search`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Api-Key': pineconeKey,
+          'X-Pinecone-API-Version': '2025-01'
+        },
+        body: JSON.stringify({
+          query: {
+            inputs: { text: query },
+            top_k: 5
+          },
+          
+        })
       });
 
-      // Get IDs from Pinecone results
-      const matchIds = queryResponse.matches
-        .filter(match => match.score >= RELEVANCE_THRESHOLD_GPT)  // Filter by GPT threshold
-        .map(match => match.id);
+      if (!searchResponse.ok) {
+        const errorText = await searchResponse.text();
+        console.error('Pinecone search failed:', errorText);
+        throw new Error(`Pinecone search failed: ${errorText}`);
+      }
+
+      const searchResults = await searchResponse.json();
+      console.log('\nPinecone search results:', JSON.stringify(searchResults, null, 2));
+      
+      // Get IDs from search results
+      const matchIds = searchResults.result.hits
+        .filter(hit => hit._score >= RELEVANCE_THRESHOLD_GPT)
+        .map(hit => hit._id);
+      console.log('\nMatched IDs above GPT threshold:', matchIds);
 
       // Add previous doc IDs if they're not in new results
       const allDocIds = Array.from(new Set([...matchIds, ...previousDocIds]));
+      console.log('All doc IDs to fetch:', allDocIds);
       
       // Fetch full records from Supabase
+      console.log('\nFetching records from Supabase...');
       const { data: minutesData, error: supabaseError } = await supabase
         .from('minutes')
         .select('*')
         .in('id', allDocIds);
         
       if (supabaseError) {
+        console.error('Supabase error:', supabaseError);
         throw new Error(`Supabase error: ${supabaseError.message}`);
       }
+      console.log('Found', minutesData?.length || 0, 'records in Supabase');
 
-      // Combine Pinecone results with Supabase data
-      const results = queryResponse.matches.map(match => {
-        const minuteRecord = minutesData?.find(m => m.id.toString() === match.id);
+      // Combine search results with Supabase data
+      const results = searchResults.result.hits.map(hit => {
+        const minuteRecord = minutesData?.find(m => m.id.toString() === hit._id);
+        if (!minuteRecord) {
+          console.warn(`No Supabase record found for ID: ${hit._id}`);
+        }
         return {
-          id: match.id,
-          score: match.score,
-          metadata: match.metadata,
-          content: minuteRecord?.content
+          id: hit._id,
+          score: hit._score,
+          metadata: hit.fields || {},
+          content: processContent(minuteRecord?.content)
         };
       });
 
       // Filter results for GPT context
       const gptResults = results.filter(r => r.score >= RELEVANCE_THRESHOLD_GPT);
+      console.log('\nResults for GPT context:', gptResults.length);
+      gptResults.forEach(r => console.log(`- [${r.id}] Score: ${r.score.toFixed(4)}, Content length: ${r.content?.length || 0}`));
 
       // Prepare conversation history for GPT
       const conversationHistory: ChatHistoryMessage[] = history.map(msg => ({
         role: msg.isUser ? "user" : "assistant",
         content: msg.content
       }));
+      console.log('\nConversation history length:', conversationHistory.length);
 
       // Send query and context to GPT-4
       const contextText = gptResults
         .map(r => r.content)
         .filter(Boolean)
         .join('\n\n');
+      console.log('\nTotal context length for GPT:', contextText.length);
+
+      console.log('\nCalling GPT-4...');
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4-turbo-preview",
