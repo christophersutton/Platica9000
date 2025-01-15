@@ -20,8 +20,10 @@ import { format } from "date-fns";
 import type { ChatMessage } from "./Messages/types";
 
 interface SourceDocument {
+  id: string;
   date: string;
   content: string;
+  score: number;
 }
 
 // Extend ChatMessage so we can include 'isUser' and optional 'sourceDocs'
@@ -117,12 +119,27 @@ export function Secretary() {
     setIsLoading(true);
 
     try {
+      // Get previous doc IDs from conversation history
+      const previousDocIds = messages
+        .filter(msg => !msg.isUser && msg.sourceDocs)
+        .flatMap(msg => msg.sourceDocs?.map(doc => doc.id) ?? []);
+
+      // Prepare conversation history
+      const history = messages.map(msg => ({
+        content: msg.content,
+        isUser: msg.isUser
+      }));
+
       const res = await fetch("https://pony-living-lively.ngrok-free.app/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ 
+          query,
+          history,
+          previousDocIds
+        }),
       });
 
       if (!res.ok) {

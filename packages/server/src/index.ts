@@ -23,6 +23,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Constants for relevance thresholds
+const RELEVANCE_THRESHOLD_GPT = 0.6;   // Threshold for including in GPT context
+const RELEVANCE_THRESHOLD_CLIENT = 0.75; // Threshold for sending back to client
+
+// Types for request body
+interface ChatMessage {
+  content: string;
+  isUser: boolean;
+}
+
+interface RequestBody {
+  query: string;
+  history?: ChatMessage[];
+  previousDocIds?: string[];
+}
+
+// Types for OpenAI chat
+type MessageRole = "system" | "user" | "assistant";
+interface ChatHistoryMessage {
+  role: MessageRole;
+  content: string;
+}
+
+interface MinuteMetadata {
+  time_period_start?: string;
+}
+
 const server = Bun.serve({
   port: process.env.PORT || 3000,
   async fetch(req) {
@@ -40,8 +67,7 @@ const server = Bun.serve({
         throw new Error('Missing required environment variables');
       }
 
-      const { query } = await req.json();
-      
+      const { query, history = [], previousDocIds = [] } = await req.json() as RequestBody;
       
       const embedding = await openai.embeddings.create({
         model: "text-embedding-3-large",
@@ -52,29 +78,27 @@ const server = Bun.serve({
       
       const queryResponse = await index.query({
         vector: embedding.data[0].embedding,
-        topK: 4,
+        topK: 5,  // Increased to 5
         includeMetadata: true,
       });
 
       // Get IDs from Pinecone results
-      const matchIds = queryResponse.matches.map(match => match.id);
-      console.log('Match IDs:', matchIds);
+      const matchIds = queryResponse.matches
+        .filter(match => match.score >= RELEVANCE_THRESHOLD_GPT)  // Filter by GPT threshold
+        .map(match => match.id);
+
+      // Add previous doc IDs if they're not in new results
+      const allDocIds = Array.from(new Set([...matchIds, ...previousDocIds]));
       
       // Fetch full records from Supabase
       const { data: minutesData, error: supabaseError } = await supabase
         .from('minutes')
         .select('*')
-        .in('id', matchIds);
+        .in('id', allDocIds);
         
       if (supabaseError) {
         throw new Error(`Supabase error: ${supabaseError.message}`);
       }
-
-      if (!minutesData || minutesData.length === 0) {
-        console.warn('No matching records found in Supabase');
-      }
-      
-      console.log('Supabase results:', minutesData);
 
       // Combine Pinecone results with Supabase data
       const results = queryResponse.matches.map(match => {
@@ -86,10 +110,18 @@ const server = Bun.serve({
           content: minuteRecord?.content
         };
       });
-      console.log('Results:', results);
 
-      // Send query and context to GPT-4 for summarization
-      const contextText = [...results]
+      // Filter results for GPT context
+      const gptResults = results.filter(r => r.score >= RELEVANCE_THRESHOLD_GPT);
+
+      // Prepare conversation history for GPT
+      const conversationHistory: ChatHistoryMessage[] = history.map(msg => ({
+        role: msg.isUser ? "user" : "assistant",
+        content: msg.content
+      }));
+
+      // Send query and context to GPT-4
+      const contextText = gptResults
         .map(r => r.content)
         .filter(Boolean)
         .join('\n\n');
@@ -98,11 +130,12 @@ const server = Bun.serve({
         model: "gpt-4-turbo-preview",
         messages: [
           {
-            role: "system",
-            content: "You are a helpful assistant that answers questions based on meeting minutes context. Keep responses concise and relevant. Use shorthand for names and dates. Do not inlcude long lists. Do not include any other information than the answer to the question."
+            role: "system" as const,
+            content: "You are a helpful assistant that answers questions based on meeting minutes context. Keep responses concise and relevant. Use shorthand for names and dates. Do not include long lists. Maintain conversation context from previous messages."
           },
+          ...conversationHistory,
           {
-            role: "user", 
+            role: "user" as const,
             content: `Context from relevant meeting minutes:\n\n${contextText}\n\nQuestion: ${query}`
           }
         ],
@@ -111,30 +144,21 @@ const server = Bun.serve({
       });
 
       const answer = completion.choices[0].message.content;
-      console.log(answer);
 
-      // Add debug logging
-      console.log('Pre-filter results:', results);
-
-      // Debug minutesData first
-      console.log('minutesData structure:', minutesData?.map(m => ({
-        id: m.id,
-        hasDate: !!m.date,
-        date: m.date
-      })));
-
+      // Filter docs for client response using stricter threshold
       const sourceDocs = results
-        // Only filter on content since that's what we definitely need
-        .filter(result => result.content)
+        .filter(result => result.score >= RELEVANCE_THRESHOLD_CLIENT && result.content)
         .map(result => {
-          // Use time_period_start from Pinecone metadata
-          const date = result.metadata?.time_period_start 
-            ? new Date(result.metadata.time_period_start).toISOString().split('T')[0]
+          const metadata = result.metadata as MinuteMetadata;
+          const date = metadata?.time_period_start 
+            ? new Date(metadata.time_period_start).toISOString().split('T')[0]
             : null;
 
           return {
+            id: result.id,
             date,
-            content: result.content
+            content: result.content,
+            score: result.score
           };
         })
         .sort((a, b) => {
@@ -142,8 +166,6 @@ const server = Bun.serve({
           if (!b.date) return -1;
           return new Date(b.date).getTime() - new Date(a.date).getTime();
         });
-
-      console.log('Formatted sourceDocs:', sourceDocs);
 
       return new Response(JSON.stringify({ 
         answer,
