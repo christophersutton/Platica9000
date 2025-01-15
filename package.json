@@ -4,8 +4,11 @@
     "private": true,
     "workspaces": ["packages/*"],
     "scripts": {
-      "dev": "bun --filter=web dev & bun --filter=server dev",
-      "build": "bun --filter=web build && bun --filter=server build",
-      "start": "bun --filter=server start"
+        "dev": "bun --filter=web dev & bun --filter=server dev",
+        "build": "bun --filter=web build && bun --filter=server build",
+        "start": "bun --filter=server start"
+    },
+    "dependencies": {
+        "@pinecone-database/pinecone": "^4.1.0"
     }
-  }
+}

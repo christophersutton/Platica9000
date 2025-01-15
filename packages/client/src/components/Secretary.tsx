@@ -4,26 +4,18 @@ import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { ScrollArea } from "./ui/scroll-area";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./ui/sheet";
 import { Badge } from "./ui/badge";
 import { format } from "date-fns";
+import { MinutesViewer } from "./MinutesViewer";
 
 // Import the base ChatMessage type from the updated Messages/types
 import type { ChatMessage } from "./Messages/types";
 
 interface SourceDocument {
-  id: string;
   date: string;
   content: string;
-  score: number;
+  id: string;  // Added to store the minute ID
 }
 
 // Extend ChatMessage so we can include 'isUser' and optional 'sourceDocs'
@@ -35,7 +27,13 @@ interface SecretaryMessage extends ChatMessage {
 const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
   message,
 }) => {
-  const [selectedDoc, setSelectedDoc] = useState<SourceDocument | null>(null);
+  const [isMinutesOpen, setIsMinutesOpen] = useState(false);
+  const [selectedMinuteId, setSelectedMinuteId] = useState<string | undefined>();
+
+  const handleViewMinute = (doc: SourceDocument) => {
+    setSelectedMinuteId(doc.id);
+    setIsMinutesOpen(true);
+  };
 
   return (
     <div className="message relative mb-4">
@@ -66,36 +64,25 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="text-sm text-gray-500">Sources:</span>
                 {message.sourceDocs.map((doc, index) => (
-                  <Sheet key={index}>
-                    <SheetTrigger asChild>
-                      <Badge
-                        variant="secondary"
-                        className="cursor-pointer hover:bg-gray-200"
-                        onClick={() => setSelectedDoc(doc)}
-                      >
-                        {format(new Date(doc.date), "MMM d, yyyy")}
-                      </Badge>
-                    </SheetTrigger>
-                    <SheetContent
-                      side="right"
-                      className="w-[400px] sm:w-[540px]"
-                    >
-                      <SheetHeader>
-                        <SheetTitle>
-                          Meeting Minutes -{" "}
-                          {format(new Date(doc.date), "MMMM d, yyyy")}
-                        </SheetTitle>
-                      </SheetHeader>
-                      <div className="mt-4 whitespace-pre-wrap">
-                        <ReactMarkdown>{doc.content}</ReactMarkdown>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-gray-200"
+                    onClick={() => handleViewMinute(doc)}
+                  >
+                    {format(new Date(doc.date), "MMM d, yyyy")}
+                  </Badge>
                 ))}
               </div>
             )}
         </div>
       </div>
+
+      <MinutesViewer
+        minuteId={selectedMinuteId}
+        isOpen={isMinutesOpen}
+        onClose={() => setIsMinutesOpen(false)}
+      />
     </div>
   );
 };
@@ -119,27 +106,12 @@ export function Secretary() {
     setIsLoading(true);
 
     try {
-      // Get previous doc IDs from conversation history
-      const previousDocIds = messages
-        .filter(msg => !msg.isUser && msg.sourceDocs)
-        .flatMap(msg => msg.sourceDocs?.map(doc => doc.id) ?? []);
-
-      // Prepare conversation history
-      const history = messages.map(msg => ({
-        content: msg.content,
-        isUser: msg.isUser
-      }));
-
       const res = await fetch("https://pony-living-lively.ngrok-free.app/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          query,
-          history,
-          previousDocIds
-        }),
+        body: JSON.stringify({ query }),
       });
 
       if (!res.ok) {
@@ -147,11 +119,17 @@ export function Secretary() {
       }
 
       const data = await res.json();
+      const sourceDocs = data.sourceDocs?.map((doc: any) => ({
+        id: doc.id,
+        date: doc.time_period_start || doc.date,
+        content: doc.content,
+      }));
+
       const assistantMessage: SecretaryMessage = {
         id: (Date.now() + 1).toString(),
         content: data.answer,
         isUser: false,
-        sourceDocs: data.sourceDocs,
+        sourceDocs,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
