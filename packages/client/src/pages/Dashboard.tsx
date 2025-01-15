@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, memo } from "react";
-import { Messages, MessageInput } from "../components/Messages/";
+import { Messages, MessageInput } from "../components/Messages";
 import { useSupabase } from "../hooks/use-supabase";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { SignOutButton } from "../components/SignOutButton";
 import React from "react";
 import { GlobalPresence } from "../components/GlobalUserPresence";
 import { ChannelList } from "../components/gpt/ChannelList";
-import { Secretary } from "../components/secretary";
+import { Secretary } from "../components/Secretary";
 const ChannelItem = memo<{
   channel: { id: string; name: string };
   isActive: boolean;
@@ -41,7 +41,7 @@ export function Dashboard() {
   // }, [fetchChannels])
 
   const handleChannelSelect = useCallback(
-    (channel) => {
+    (channel: { id: string; name: string }) => {
       navigate(`/channels/${channel.id}`);
     },
     [navigate]

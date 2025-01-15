@@ -1,6 +1,5 @@
-// components/AttachmentList.tsx
 import React from "react";
-import { Attachment } from "../../hooks/use-upload";
+import { type Attachment } from "../../hooks/use-upload";
 import { ExternalLink } from "lucide-react";
 
 interface AttachmentListProps {

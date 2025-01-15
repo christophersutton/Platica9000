@@ -1,6 +1,6 @@
 // contexts/SupabaseContext.tsx
 import React, { createContext, useEffect, useState } from 'react'
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js'
+import { createClient, SupabaseClient, type User } from '@supabase/supabase-js'
 
 // Create a single instance of the Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -27,11 +27,11 @@ export const Context = createContext<SupabaseContextType>({
   loading: true 
 });
 
-export function SupabaseProvider({ children }) {
-  const [user, setUser] = useState(null)
+export function SupabaseProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const syncUser = async (authUser) => {
+  const syncUser = async (authUser: User) => {
     if (!authUser) return null
 
     // Try to get the user from our database

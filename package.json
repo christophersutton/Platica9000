@@ -1,23 +1,11 @@
 {
-  "name": "crapica",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "devDependencies": {
-    "supabase": "^2.2.1"
-  },
-  "dependencies": {
-    "@pinecone-database/pinecone": "^4.1.0",
-    "@supabase/supabase-js": "^2.47.13",
-    "dotenv": "^16.4.7",
-    "openai": "^4.78.1",
-    "postgres": "^3.4.5",
-    "uuid": "^11.0.5"
+    "name": "platica-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "workspaces": ["packages/*"],
+    "scripts": {
+      "dev": "bun --filter=web dev & bun --filter=server dev",
+      "build": "bun --filter=web build && bun --filter=server build",
+      "start": "bun --filter=server start"
+    }
   }
-}

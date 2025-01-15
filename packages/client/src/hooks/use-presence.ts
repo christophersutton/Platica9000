@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   RealtimeChannel,
-  RealtimeChannelSendResponse
+  type RealtimeChannelSendResponse
 } from '@supabase/supabase-js'
 import { useSupabase } from './use-supabase'
 

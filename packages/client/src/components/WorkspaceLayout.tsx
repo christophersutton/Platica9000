@@ -3,9 +3,9 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from "../components/ui/resizable";
-import { ChannelList } from "../components/gpt/ChannelList";
-import { useSupabase } from "../hooks/useSupabase";
+} from "./ui/resizable";
+import { ChannelList } from "./gpt/ChannelList";
+import { useSupabase } from "../hooks/use-supabase";
 export const WorkspaceLayout = () => {
   
   const { supabase, user } = useSupabase();
@@ -28,13 +28,13 @@ export const WorkspaceLayout = () => {
                   <h2 className="font-semibold">Organization</h2>
                 </div>
                 <div className="p-4 space-y-2">
-                  <ChannelList />
+                  <ChannelList onChannelSelect={() => {}} />
                 </div>
               </div>
             </div>
             <div className="mt-auto">
-              <GlobalUserStatus user={user} />
-              <CurrentUser />
+              
+              
             </div>
           </ResizablePanel>
 
@@ -44,7 +44,7 @@ export const WorkspaceLayout = () => {
           <ResizablePanel defaultSize={55}>
             <div className="flex flex-col h-full">
               <div className="p-4 border-b flex justify-between items-center">
-                <Messages channelId={channelId} />
+                
               </div>
             </div>
           </ResizablePanel>

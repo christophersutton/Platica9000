@@ -1,6 +1,19 @@
 {
-  "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "bundler"
+    "compilerOptions": {
+      "composite": true,
+      "incremental": true,
+      "lib": ["ESNext", "DOM"],
+      "module": "ESNext",
+      "moduleResolution": "bundler",
+      "target": "ESNext",
+      "moduleDetection": "force",
+      "allowImportingTsExtensions": true,
+      "verbatimModuleSyntax": true,
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "noEmit": true,
+      "skipLibCheck": true,
+      "strict": true
+    },
+    "include": ["packages/*"]
   }
-}
