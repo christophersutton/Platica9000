@@ -16,32 +16,24 @@ import {
 import { Badge } from "./ui/badge";
 import { format } from "date-fns";
 
-// Function to clean up the markdown text
-
+// Import the base ChatMessage type from the updated Messages/types
+import type { ChatMessage } from "./Messages/types";
 
 interface SourceDocument {
   date: string;
   content: string;
 }
 
-interface Message {
-  id: string;
-  content: string;
+// Extend ChatMessage so we can include 'isUser' and optional 'sourceDocs'
+interface SecretaryMessage extends ChatMessage {
   isUser: boolean;
   sourceDocs?: SourceDocument[];
-  users?: {
-    avatar_url?: string;
-    email?: string;
-    full_name?: string;
-  };
 }
 
-const MessageDisplay: React.FC<{ message: Message }> = ({ message }) => {
+const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
+  message,
+}) => {
   const [selectedDoc, setSelectedDoc] = useState<SourceDocument | null>(null);
-  console.log(message);
-  console.log(message.sourceDocs);
-  console.log(message.users);
-  console.log(message.content);
 
   return (
     <div className="message relative mb-4">
@@ -108,14 +100,14 @@ const MessageDisplay: React.FC<{ message: Message }> = ({ message }) => {
 
 export function Secretary() {
   const [query, setQuery] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<SecretaryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isLoading) return;
 
-    const userMessage: Message = {
+    const userMessage: SecretaryMessage = {
       id: Date.now().toString(),
       content: query,
       isUser: true,
@@ -138,7 +130,7 @@ export function Secretary() {
       }
 
       const data = await res.json();
-      const assistantMessage: Message = {
+      const assistantMessage: SecretaryMessage = {
         id: (Date.now() + 1).toString(),
         content: data.answer,
         isUser: false,
@@ -149,7 +141,7 @@ export function Secretary() {
       setQuery("");
     } catch (error) {
       console.error("Error:", error);
-      const errorMessage: Message = {
+      const errorMessage: SecretaryMessage = {
         id: (Date.now() + 1).toString(),
         content: "Sorry, there was an error processing your request.",
         isUser: false,
