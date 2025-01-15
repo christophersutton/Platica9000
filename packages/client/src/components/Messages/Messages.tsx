@@ -1,55 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams } from "react-router-dom";
-import MessageInput from "./MessageInput";
 import { useSupabase } from "../../hooks/use-supabase";
-import EmojiPicker from "emoji-picker-react";
-import { SmilePlusIcon } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import { HubPresence } from "../hubs/HubPresence";
-const isImageFile = (filename: string) => {
-  return /\.(jpg|jpeg|png|gif|webp)$/i.test(filename.toLowerCase());
-};
+import { Message } from "./Message";
+import MessageInput from "./MessageInput";
+import type { ChatMessage, ReactionMap, Reaction, Attachment } from "./types";
 
-interface ReactionMap {
-  [emoji: string]: {
-    count: number;
-    hasReacted: boolean;
-    userIds: Set<string>;
-  };
-}
-
-interface Reaction {
-  emoji: string;
-  count: number;
-  hasReacted: boolean;
-  userIds: string[];
-}
-
-export interface Attachment {
-  type: "file";
-  url: string;
-  name: string;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  attachments?: Attachment[];
-  users?: {
-    avatar_url?: string;
-    email?: string;
-    full_name?: string;
-  };
-  reactions?: Reaction[];
-}
-
-interface MessageProps {
-  message: Message;
-  currentUser?: any;
-  onAddReaction: (messageId: string, emoji: string) => void;
-  onRemoveReaction: (messageId: string, emoji: string) => void;
-}
-
+// Database message shape from Supabase
 interface DatabaseMessage {
   id: string;
   content: string;
@@ -67,144 +25,6 @@ interface DatabaseMessage {
   }[];
 }
 
-// -------------------
-// Child component
-// -------------------
-const Message = memo(
-  ({ message, currentUser, onAddReaction, onRemoveReaction }: MessageProps) => {
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [loadingImages, setLoadingImages] = useState<{
-      [key: string]: boolean;
-    }>({});
-    const [imageLoadError, setImageLoadError] = useState<{
-      [key: string]: boolean;
-    }>({});
-
-    return (
-      <div className="message relative">
-        <div className="flex items-start space-x-3">
-          <img
-            src={
-              message.users?.avatar_url ||
-              `https://api.dicebear.com/7.x/bottts/svg?seed=${message.users?.email}`
-            }
-            alt={message.users?.full_name || "Anonymous User"}
-            className="w-8 h-8 rounded-full"
-          />
-          <div>
-            <div className="font-medium">{message.users?.full_name}</div>
-            {message.content && <div>{message.content}</div>}
-
-            {/* Add attachment rendering */}
-            {message.attachments?.map((attachment, index) => (
-              <div key={index} className="mt-2">
-                {attachment.type === "file" &&
-                  (isImageFile(attachment.name) ? (
-                    imageLoadError[attachment.url] ? (
-                      <div className="text-red-500">
-                        Failed to load image: {attachment.name}
-                      </div>
-                    ) : (
-                      <div className="group relative">
-                        <img
-                          src={attachment.url}
-                          alt={attachment.name}
-                          className="max-w-sm rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => window.open(attachment.url, "_blank")}
-                          onError={(e) => {
-                            console.error("Image load error:", attachment.url);
-                            setImageLoadError((prev) => ({
-                              ...prev,
-                              [attachment.url]: true,
-                            }));
-                          }}
-                        />
-                      </div>
-                    )
-                  ) : (
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded hover:bg-gray-200"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      {attachment.name}
-                    </a>
-                  ))}
-              </div>
-            ))}
-
-            <div className="flex gap-1 mt-1 items-center">
-              {/* Reaction buttons */}
-              {message?.reactions?.map((reaction) => (
-                <button
-                  key={`${message.id}-${reaction.emoji}`}
-                  onClick={() =>
-                    reaction.hasReacted
-                      ? onRemoveReaction(message.id, reaction.emoji)
-                      : onAddReaction(message.id, reaction.emoji)
-                  }
-                  className={`px-2 py-1 rounded text-sm ${
-                    reaction.hasReacted ? "bg-blue-100" : "bg-gray-100"
-                  }`}
-                >
-                  {reaction.emoji} {reaction.count}
-                </button>
-              ))}
-              {/* Reaction picker toggle */}
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-1 rounded hover:bg-gray-100"
-                title="Add reaction"
-              >
-                <span className="text-lg">
-                  <SmilePlusIcon />
-                </span>
-              </button>
-            </div>
-
-            {/* Emoji picker */}
-            {showEmojiPicker && (
-              <div className="absolute z-10">
-                <div
-                  className="fixed inset-0"
-                  onClick={() => setShowEmojiPicker(false)}
-                />
-                <div className="relative">
-                  <EmojiPicker
-                    onEmojiClick={(emojiData) => {
-                      onAddReaction(message.id, emojiData.emoji);
-                      setShowEmojiPicker(false);
-                    }}
-                    width={300}
-                    height={400}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-);
-
-// -------------------
-// Parent component
-// -------------------
 export default function Messages() {
   const { channelId } = useParams();
   const { supabase, user: currentUser } = useSupabase();
@@ -224,7 +44,7 @@ export default function Messages() {
   // Use a ref to decide if this is the initial fetch
   const isInitialFetch = useRef(true);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [channelName, setChannelName] = useState<string>("");
 
@@ -244,7 +64,7 @@ export default function Messages() {
                 userIds: new Set(),
               };
             }
-            // Only count unique user per emoji to avoid duplicates
+            // Only count unique user per emoji
             if (!acc[r.emoji].userIds.has(r.user_id)) {
               acc[r.emoji].count += 1;
               acc[r.emoji].userIds.add(r.user_id);
@@ -256,7 +76,7 @@ export default function Messages() {
             return acc;
           }, {}) || {};
 
-        const reactionsArray = Object.entries(reactionMap).map(
+        const reactionsArray: Reaction[] = Object.entries(reactionMap).map(
           ([emoji, data]) => ({
             emoji,
             count: data.count,
@@ -268,7 +88,7 @@ export default function Messages() {
         return {
           ...msg,
           reactions: reactionsArray,
-        };
+        } as ChatMessage;
       }),
     [currentUser?.id]
   );
@@ -278,21 +98,19 @@ export default function Messages() {
 
     const { data, error } = await supabase
       .from("messages")
-      .select(
-        `
-          *,
-          users (
-            id,
-            full_name,
-            avatar_url,
-            email
-          ),
-          reactions (
-            emoji,
-            user_id
-          )
-        `
-      )
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          avatar_url,
+          email
+        ),
+        reactions (
+          emoji,
+          user_id
+        )
+      `)
       .eq("channel_id", channelId)
       .order("created_at", { ascending: true });
 
@@ -339,7 +157,7 @@ export default function Messages() {
       setHasManuallyScrolled(true);
     }
 
-    // If the user is back near the bottom, we re-enable auto-scroll
+    // If the user is back near the bottom, re-enable auto-scroll
     if (isNearBottom) {
       setHasManuallyScrolled(false);
     }
@@ -352,7 +170,7 @@ export default function Messages() {
     const hadMessagesBefore = previousMessageCount.current;
     previousMessageCount.current = newMessageCount;
 
-    // If it's our first load, always jump straight to bottom
+    // If it's our first load, jump to bottom
     if (initialLoading) {
       bottomRef.current?.scrollIntoView({ behavior: "auto" });
       return;
@@ -419,7 +237,7 @@ export default function Messages() {
         channel_id: channelId,
         content: messageContent,
         user_id: currentUser?.id,
-        attachments: attachments, // Make sure your database table has an attachments column
+        attachments: attachments,
       });
       if (error) throw error;
     } catch (err) {
@@ -428,14 +246,13 @@ export default function Messages() {
   };
 
   const addReaction = useCallback(
-    async (messageId, emoji) => {
+    async (messageId: string, emoji: string) => {
       // Optimistic update
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== messageId) return msg;
           const newReactions = [...(msg.reactions || [])];
           const existing = newReactions.find((r) => r.emoji === emoji);
-          // Skip if no current user
           if (!currentUser?.id) return msg;
 
           if (existing) {
@@ -473,7 +290,7 @@ export default function Messages() {
   );
 
   const removeReaction = useCallback(
-    async (messageId, emoji) => {
+    async (messageId: string, emoji: string) => {
       // Optimistic update
       setMessages((prev) =>
         prev.map((msg) => {
@@ -531,7 +348,7 @@ export default function Messages() {
       <ScrollArea
         ref={messagesContainerRef}
         className="flex-1"
-        onScroll={(event) => handleScroll()}
+        onScroll={handleScroll}
       >
         <div className="flex flex-col h-full p-4">
           {messages.length === 0 ? (
@@ -555,6 +372,8 @@ export default function Messages() {
         </div>
       </ScrollArea>
 
+      {/* Reuse existing input component */}
+      {/* Notice that MessageInput expects onSend and channelId, same as before */}
       <MessageInput onSend={handleSend} channelId={channelId || ""} />
     </div>
   );

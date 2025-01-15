@@ -1,13 +1,11 @@
-// hooks/useFileUpload.ts
+// hooks/use-upload.ts
 import { useState } from "react";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeFileName } from "../lib/utils";
+// Unified Attachment type imported from the Messages/types file
+import type { Attachment } from "../components/Messages/types";
 
-export interface Attachment {
-  type: "file";
-  url: string;
-  name: string;
-}
+export type { Attachment } from "../components/Messages/types";
 
 interface UseFileUploadResult {
   uploading: boolean;
@@ -19,14 +17,14 @@ export function useFileUpload(supabase: SupabaseClient): UseFileUploadResult {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  async function uploadFile(file: File): Promise<Attachment | null> {
+  const uploadFile = async (file: File): Promise<Attachment | null> => {
     setUploading(true);
     setProgress(0);
     try {
       const timestamp = new Date().getTime();
       const sanitizedName = `${timestamp}-${sanitizeFileName(file.name)}`;
 
-      // For now, let's use a simpler approach with XMLHttpRequest for progress tracking
+      // For now, let's use a simpler approach with XMLHttpRequest for progress
       const { data, error } = await new Promise<{ data: any; error: any }>((resolve) => {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
@@ -96,7 +94,7 @@ export function useFileUpload(supabase: SupabaseClient): UseFileUploadResult {
     } finally {
       setUploading(false);
     }
-  }
+  };
 
   return { uploading, progress, uploadFile };
 }
