@@ -24,6 +24,10 @@ interface SecretaryMessage extends ChatMessage {
   sourceDocs?: SourceDocument[];
 }
 
+interface CustomEventData extends Event {
+  data: string;
+}
+
 const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
   message,
 }) => {
@@ -91,6 +95,7 @@ export function Secretary() {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<SecretaryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentStreamingMessage, setCurrentStreamingMessage] = useState<string>("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,41 +109,109 @@ export function Secretary() {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
+    setCurrentStreamingMessage("");
+
+    const requestBody = {
+      query: query.trim(),
+      history: messages.map(msg => ({
+        content: msg.content,
+        isUser: msg.isUser
+      })),
+      previousDocIds: messages
+        .filter(msg => !msg.isUser && msg.sourceDocs)
+        .flatMap(msg => msg.sourceDocs?.map(doc => doc.id) || [])
+    };
 
     try {
-      const res = await fetch("https://pony-living-lively.ngrok-free.app/", {
+      const response = await fetch("https://pony-living-lively.ngrok-free.app/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "text/event-stream",
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to fetch response");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Network response was not ok' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data = await res.json();
-      const sourceDocs = data.sourceDocs?.map((doc: any) => ({
-        id: doc.id,
-        date: doc.time_period_start || doc.date,
-        content: doc.content,
-      }));
+      if (!response.body) {
+        throw new Error("No response body received");
+      }
 
-      const assistantMessage: SecretaryMessage = {
-        id: (Date.now() + 1).toString(),
-        content: data.answer,
-        isUser: false,
-        sourceDocs,
-      };
+      let sourceDocs: SourceDocument[] = [];
+      let streamedContent = "";
 
-      setMessages((prev) => [...prev, assistantMessage]);
-      setQuery("");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() || "";
+
+          for (const event of events) {
+            if (!event.trim()) continue;
+
+            const lines = event.split("\n");
+            const eventType = lines[0].replace("event: ", "");
+            const data = lines[1]?.replace("data: ", "");
+
+            if (!data) continue;
+
+            try {
+              const parsedData = JSON.parse(data);
+
+              switch (eventType) {
+                case "message":
+                  if (parsedData.content) {
+                    streamedContent += parsedData.content;
+                    setCurrentStreamingMessage(streamedContent);
+                  }
+                  break;
+                case "docs":
+                  if (parsedData.sourceDocs) {
+                    sourceDocs = parsedData.sourceDocs;
+                  }
+                  break;
+                case "error":
+                  throw new Error(parsedData.error || "Unknown streaming error");
+                case "done":
+                  const assistantMessage: SecretaryMessage = {
+                    id: (Date.now() + 1).toString(),
+                    content: streamedContent,
+                    isUser: false,
+                    sourceDocs,
+                  };
+                  setMessages((prev) => [...prev, assistantMessage]);
+                  setCurrentStreamingMessage("");
+                  setQuery("");
+                  setIsLoading(false);
+                  return;
+              }
+            } catch (error) {
+              console.error("Error parsing event data:", error);
+              throw new Error("Failed to parse server response");
+            }
+          }
+        }
+      } catch (error) {
+        throw error;
+      } finally {
+        reader.releaseLock();
+      }
     } catch (error) {
       console.error("Error:", error);
       const errorMessage: SecretaryMessage = {
         id: (Date.now() + 1).toString(),
-        content: "Sorry, there was an error processing your request.",
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
         isUser: false,
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -158,9 +231,28 @@ export function Secretary() {
               </p>
             </div>
           ) : (
-            messages.map((message) => (
-              <MessageDisplay key={message.id} message={message} />
-            ))
+            <>
+              {messages.map((message) => (
+                <MessageDisplay key={message.id} message={message} />
+              ))}
+              {currentStreamingMessage && (
+                <div className="message relative mb-4">
+                  <div className="flex items-start space-x-3">
+                    <img
+                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=assistant`}
+                      alt="Assistant"
+                      className="w-8 h-8 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">Assistant</div>
+                      <div className="prose prose-sm dark:prose-invert mb-2">
+                        <ReactMarkdown>{currentStreamingMessage}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </ScrollArea>
