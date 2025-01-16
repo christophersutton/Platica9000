@@ -12,6 +12,8 @@ import { MinutesViewer } from "./MinutesViewer";
 // Import the base ChatMessage type from the updated Messages/types
 import type { ChatMessage } from "./Messages/types";
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+
 interface SourceDocument {
   date: string;
   content: string;
@@ -123,7 +125,7 @@ export function Secretary() {
     };
 
     try {
-      const response = await fetch("https://pony-living-lively.ngrok-free.app/chat", {
+      const response = await fetch(`${SERVER_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

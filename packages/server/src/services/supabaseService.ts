@@ -1,7 +1,7 @@
 import { supabase } from "../config";
 import { processContent } from "../utils";
 
-export async function fetchMinutesContent(docIds: string[]): Promise<Record<string, string>> {
+export async function fetchMinutesContent(docIds: string[]) {
   if (!docIds.length) return {};
 
   const { data, error } = await supabase
@@ -12,25 +12,21 @@ export async function fetchMinutesContent(docIds: string[]): Promise<Record<stri
   if (error) {
     throw new Error(`Supabase error: ${error.message}`);
   }
-
-  return Object.fromEntries(
-    (data || []).map(record => [record.id.toString(), processContent(record.content)])
-  );
+  console.log(data);
+  return data;
 }
 
-export async function fetchUploadContent(docIds: string[]): Promise<Record<string, string>> {
-  if (!docIds.length) return {};
+export async function fetchUploadContent(pathname: string) {
+  if (!pathname) throw new Error("Pathname is required");
 
   const { data, error } = await supabase
-    .from("uploads")
-    .select("*")
-    .in("id", docIds);
+    .storage
+    .from('attachments')
+    .download(pathname);
 
   if (error) {
     throw new Error(`Supabase error: ${error.message}`);
   }
 
-  return Object.fromEntries(
-    (data || []).map(record => [record.id.toString(), processContent(record.content)])
-  );
+  return data;
 }

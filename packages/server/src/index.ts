@@ -1,11 +1,12 @@
 import { initializeIndexHost, INDEX_HOST, corsHeaders, sseHeaders } from "./config";
 import { handleChatRequest } from "./controllers/chat";
+import { processUpload } from "./controllers/processUpload";
 
 // initializeIndexHost().catch(console.error);
 
 const server = Bun.serve({
   port: process.env.PORT || 3000,
-  async fetch(req) {
+  async fetch(req, server) {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
       return new Response("ok", { headers: corsHeaders });
@@ -23,6 +24,9 @@ const server = Bun.serve({
     const url = new URL(req.url);
     if (url.pathname === "/chat") {
       return handleChatRequest(req);
+    }
+    else if (url.pathname === "/processFile") {
+      return processUpload(req);
     }
 
     // Fallback for any other route

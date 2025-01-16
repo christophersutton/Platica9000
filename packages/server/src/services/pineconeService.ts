@@ -96,7 +96,7 @@ export async function deleteIndex() {
 }
 
 /** Create or configure the Pinecone index, setting INDEX_HOST */
-export async function createOrConfigureIndex() {
+export async function createOrConfigureIndex(name: string) {
   console.log("Creating/configuring Pinecone index...");
   try {
     // Attempt to create index
@@ -105,7 +105,7 @@ export async function createOrConfigureIndex() {
       method: "POST",
       headers: getPineconeAdminHeaders(),
       body: JSON.stringify({
-        name: INDEX_NAME,
+        name: name,
         cloud: "aws",
         region: "us-east-1",
         embed: {
@@ -193,13 +193,13 @@ export async function processMinutesBatch(minutes: any[]) {
  * Example main function for a one-off script usage.
  * Delete existing index -> create/configure -> fetch minutes from Supabase -> upsert in batches
  */
-export async function runIndexingPipeline() {
+export async function runIndexingPipeline(name: string) {
   try {
     // 1) Delete existing index (optional, if you want a fresh start)
     await deleteIndex();
     
     // 2) Create or configure the index
-    await createOrConfigureIndex();
+    await createOrConfigureIndex(name);
 
     // 3) Fetch all 'minutes' from Supabase
     const { data: minutes, error } = await supabase
