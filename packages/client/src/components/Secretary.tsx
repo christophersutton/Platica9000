@@ -123,7 +123,7 @@ export function Secretary() {
     };
 
     try {
-      const response = await fetch("https://pony-living-lively.ngrok-free.app/", {
+      const response = await fetch("https://pony-living-lively.ngrok-free.app/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
