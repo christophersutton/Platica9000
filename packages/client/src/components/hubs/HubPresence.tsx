@@ -16,7 +16,7 @@ export function HubPresence({ hubId }: HubProps) {
     <div className="space-y-2">
       <div className="flex items-center space-x-2">
         <h3 className="font-semibold">{`${activeUsersWithMetadata.length} Active Now`}</h3>
-        {activeUsersWithMetadata.map((user) => (
+        {/* {activeUsersWithMetadata.map((user) => (
           <div key={user.id} className="flex items-center space-x-2">
             <img
               src={
@@ -28,7 +28,7 @@ export function HubPresence({ hubId }: HubProps) {
             />
             <span>{user.full_name}</span>
           </div>
-        ))}
+        ))} */}
       </div>
     </div>
   );
