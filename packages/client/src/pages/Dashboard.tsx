@@ -1,44 +1,13 @@
-import { useState, useEffect, useCallback, memo } from "react";
-import { Messages, MessageInput } from "../components/Messages";
+import React, { useCallback } from "react";
 import { useSupabase } from "../hooks/use-supabase";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { SignOutButton } from "../components/SignOutButton";
-import React from "react";
-import { GlobalPresence } from "../components/GlobalUserPresence";
 import { ChannelList } from "../components/gpt/ChannelList";
-import { Secretary } from "../components/Secretary";
-const ChannelItem = memo<{
-  channel: { id: string; name: string };
-  isActive: boolean;
-  onClick: (channel: { id: string; name: string }) => void;
-}>(({ channel, isActive, onClick }) => (
-  <li
-    onClick={() => onClick(channel)}
-    className={`cursor-pointer p-2 rounded ${isActive ? "bg-gray-700" : ""}`}
-  >
-    # {channel.name}
-  </li>
-));
+import { OnlineUsersList } from "../components/OnlineUsersList";
 
 export function Dashboard() {
-  const [channels, setChannels] = useState([]);
-  const [currentChannel, setCurrentChannel] = useState(null);
-  const { supabase, user } = useSupabase();
-
+  const { user } = useSupabase();
   const navigate = useNavigate();
-
-  // const fetchChannels = useCallback(async () => {
-  //   const { data, error } = await supabase.from('channels').select('*')
-  //   if (error) {
-  //     console.error('Error fetching channels:', error)
-  //   } else {
-  //     setChannels(data)
-  //   }
-  // }, [supabase])
-
-  // useEffect(() => {
-  //   fetchChannels()
-  // }, [fetchChannels])
 
   const handleChannelSelect = useCallback(
     (channel: { id: string; name: string }) => {
@@ -55,12 +24,15 @@ export function Dashboard() {
     <div className="flex h-screen">
       {/* Sidebar */}
       <div className="w-64 bg-gray-800 text-white p-4 flex flex-col">
-        <div className="flex-1">
+        <div className="flex-1 space-y-4">
           <ChannelList onChannelSelect={handleChannelSelect} />
+          <div className="bg-white text-black p-2 rounded">
+            <OnlineUsersList />
+          </div>
         </div>
         <div className="mt-auto">
-          <Link 
-            to="/secretary" 
+          <Link
+            to="/secretary"
             className="block w-full text-center mb-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors duration-200 text-white font-medium"
           >
             Ask the Secretary
@@ -68,7 +40,6 @@ export function Dashboard() {
           <SignOutButton />
         </div>
       </div>
-
       {/* Main content */}
       <div className="flex-1">
         <Outlet />
