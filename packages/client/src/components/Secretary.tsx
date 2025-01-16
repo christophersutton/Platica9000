@@ -140,17 +140,15 @@ export function Secretary() {
     };
 
     try {
-      const response = await fetch(
-        "https://pony-living-lively.ngrok-free.app/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "text/event-stream",
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
+      
+      const response = await fetch("https://pony-living-lively.ngrok-free.app/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+        },
+        body: JSON.stringify(requestBody),
+      });
 
       if (!response.ok) {
         const errorData = await response
