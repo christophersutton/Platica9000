@@ -1,4 +1,10 @@
-import { initializeIndexHost, INDEX_HOST, corsHeaders, sseHeaders } from "./config";
+import {
+  initializeIndexHost,
+  INDEX_HOST,
+  corsHeaders,
+  sseHeaders,
+  supabase,
+} from "./config";
 import { processUpload, queryAttachments } from "./controllers/attachments";
 import { handleChatRequest } from "./controllers/chat";
 
@@ -12,13 +18,41 @@ const server = Bun.serve({
       return new Response("ok", { headers: corsHeaders });
     }
 
-    // // Validate index host
-    // if (!INDEX_HOST) {
-    //   return new Response(
-    //     JSON.stringify({ error: "Server not fully initialized" }),
-    //     { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    //   );
-    // }
+    // Extract and validate auth token
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response("Unauthorized - Missing or invalid token", {
+        status: 401,
+        headers: corsHeaders,
+      });
+    }
+
+    // Get the actual token
+    const token = authHeader.split(" ")[1];
+
+    try {
+      // Verify the JWT token with Supabase
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token);
+
+      if (error || !user) {
+        return new Response("Unauthorized - Invalid token", {
+          status: 401,
+          headers: corsHeaders,
+        });
+      }
+
+      // Add user info to request context
+      (req as any).user = user;
+    } catch (error) {
+      console.error("Auth error:", error);
+      return new Response("Internal server error", {
+        status: 500,
+        headers: corsHeaders,
+      });
+    }
 
     // Route: /chat
     const url = new URL(req.url);

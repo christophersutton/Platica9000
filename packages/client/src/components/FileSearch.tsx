@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useSupabase } from "../hooks/use-supabase";
 
 interface SearchResult {
   id: string;
@@ -18,13 +19,21 @@ export function FileSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { supabase } = useSupabase();
 
   const handleSearch = async (searchQuery: string) => {
     setIsLoading(true);
     try {
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session");
+      }
+
       const response = await fetch(`${SERVER_URL}/query-attachments?query=${encodeURIComponent(searchQuery)}`, {
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
         },
       });
       if (!response.ok) {

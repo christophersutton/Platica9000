@@ -21,10 +21,11 @@ export const RELEVANCE_THRESHOLD_GPT = 0.6;
 export const RELEVANCE_THRESHOLD_CLIENT = 0.75;
 export const INDEX_NAME = "minutes";
 export let INDEX_HOST: string;
+export const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 
 // Headers
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': CORS_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 

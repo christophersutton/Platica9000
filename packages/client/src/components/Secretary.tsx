@@ -11,6 +11,7 @@ import type { ChatMessage } from "./Messages/types";
 import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
 import * as chrono from 'chrono-node';
+import { useSupabase } from "../hooks/use-supabase";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
@@ -116,6 +117,7 @@ export function Secretary() {
   const [messages, setMessages] = useState<SecretaryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState("");
+  const { supabase } = useSupabase();
 
   if (!SERVER_URL) {
     throw new Error("SERVER_URL is not defined");
@@ -146,11 +148,18 @@ export function Secretary() {
     };
 
     try {
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session");
+      }
+
       const response = await fetch(`${SERVER_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Accept": "text/event-stream",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(requestBody),
       });

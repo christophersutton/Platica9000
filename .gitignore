@@ -55,4 +55,4 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
-.
+*.pem
