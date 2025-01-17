@@ -61,7 +61,7 @@ async function loadMinutes() {
     });
   }
 
-  console.log('Minutes loaded successfully');
+  
 }
 
 loadMinutes().catch(console.error); 

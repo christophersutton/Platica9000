@@ -17,7 +17,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 const extractDatesFromContent = (content: string): Date[] => {
   const parsedDates = chrono.parse(content, new Date(), { forwardDate: false });
-  console.log(parsedDates);
+  
   return parsedDates
     .map((result) => result.start.date())
     .filter((date): date is Date => date !== null);
