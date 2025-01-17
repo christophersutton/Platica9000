@@ -1,3 +1,4 @@
+import { Attachment } from './../../../client/src/components/Messages/types';
 import { corsHeaders } from "../config";
 import { textDocumentSummary } from "../services/";
 import { fetchUploadContent } from "../services/supabaseService";
@@ -118,3 +119,50 @@ async function processDocument(
     throw new Error(`Failed to process ${mimeType} document: ${error.message}`);
   }
 }
+
+export const queryAttachments = async (req: Request) => {
+  try {
+    const url = new URL(req.url);
+    const query = url.searchParams.get('query');
+    
+    if (!query) {
+      return new Response(
+        JSON.stringify({ error: "Missing required query parameter" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const pineconeClient = PineconeClient.getInstance();
+    pineconeClient.registerIndex("attachments");
+    const searchResults = await pineconeClient.search('attachments', query);
+
+    console.log("searchResults", searchResults);
+    // Filter for only attachment type results
+    const attachmentResults = searchResults.filter(
+      result => result.metadata?.type === 'attachment'
+    ).map(result => ({
+      id: result.id,
+      score: result.score,
+      originalName: result.metadata?.originalName,
+      mimeType: result.metadata?.mimeType,
+      uploadedAt: result.metadata?.uploadedAt
+    }));
+
+    return new Response(JSON.stringify({ results: attachmentResults }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error querying attachments:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to query attachments" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+};

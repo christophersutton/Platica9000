@@ -1,5 +1,5 @@
 import { initializeIndexHost, INDEX_HOST, corsHeaders, sseHeaders } from "./config";
-import { processUpload } from "./controllers/attachments";
+import { processUpload, queryAttachments } from "./controllers/attachments";
 import { handleChatRequest } from "./controllers/chat";
 
 // initializeIndexHost().catch(console.error);
@@ -28,6 +28,10 @@ const server = Bun.serve({
     // Route: /process-file
     if (url.pathname === "/processFile") {
       return processUpload(req);
+    }
+    // Route: /query-attachments
+    if (url.pathname === "/query-attachments" && req.method === "GET") {
+      return queryAttachments(req);
     }
 
     // Fallback for any other route
