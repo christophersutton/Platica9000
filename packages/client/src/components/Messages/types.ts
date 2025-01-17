@@ -26,6 +26,7 @@ export interface Attachment {
 export interface ChatMessage {
   id: string;
   content: string;
+  created_at?: string;
   attachments?: Attachment[];
   users?: {
     avatar_url?: string;
@@ -33,4 +34,5 @@ export interface ChatMessage {
     full_name?: string;
   };
   reactions?: Reaction[];
+  parent_id?: string;
 }

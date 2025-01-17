@@ -17,7 +17,7 @@ interface SourceDocument {
   content: string;
   id: string;
 }
-interface SecretaryMessage extends ChatMessage {
+interface SecretaryMessage extends Omit<ChatMessage, 'created_at'> {
   isUser: boolean;
   sourceDocs?: SourceDocument[];
 }

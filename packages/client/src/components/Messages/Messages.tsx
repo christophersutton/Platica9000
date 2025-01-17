@@ -25,7 +25,11 @@ interface DatabaseMessage {
   }[];
 }
 
-export default function Messages() {
+interface MessagesProps {
+  threadId?: string; // new optional prop
+}
+
+export default function Messages({ threadId }: MessagesProps) {
   const { channelId } = useParams();
   const { supabase, user: currentUser } = useSupabase();
 
@@ -33,15 +37,9 @@ export default function Messages() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Track whether the user has manually scrolled away from the bottom
   const [hasManuallyScrolled, setHasManuallyScrolled] = useState(false);
-
-  // Keep track of number of messages so we know when new ones appear
   const previousMessageCount = useRef(0);
-  // Store the last known scrollTop to detect scroll direction
   const lastScrollTop = useRef(0);
-
-  // Use a ref to decide if this is the initial fetch
   const isInitialFetch = useRef(true);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -54,7 +52,6 @@ export default function Messages() {
   const processMessages = useCallback(
     (messagesData: DatabaseMessage[]) =>
       messagesData.map((msg) => {
-        // Aggregate reactions by emoji
         const reactionMap: ReactionMap =
           msg.reactions?.reduce((acc: ReactionMap, r) => {
             if (!acc[r.emoji]) {
@@ -64,12 +61,10 @@ export default function Messages() {
                 userIds: new Set(),
               };
             }
-            // Only count unique user per emoji
             if (!acc[r.emoji].userIds.has(r.user_id)) {
               acc[r.emoji].count += 1;
               acc[r.emoji].userIds.add(r.user_id);
             }
-            // Check if current user has reacted
             if (r.user_id === currentUser?.id) {
               acc[r.emoji].hasReacted = true;
             }
@@ -88,7 +83,7 @@ export default function Messages() {
         return {
           ...msg,
           reactions: reactionsArray,
-        } as ChatMessage;
+        } as Omit<ChatMessage, 'created_at'>;
       }),
     [currentUser?.id]
   );
@@ -96,7 +91,8 @@ export default function Messages() {
   const fetchMessages = useCallback(async () => {
     if (isInitialFetch.current) setInitialLoading(true);
 
-    const { data, error } = await supabase
+    // Build query based on whether threadId exists
+    let query = supabase
       .from("messages")
       .select(`
         *,
@@ -111,9 +107,15 @@ export default function Messages() {
           user_id
         )
       `)
-      .eq("channel_id", channelId)
       .order("created_at", { ascending: true });
 
+    if (threadId) {
+      query = query.eq("parent_id", threadId);
+    } else {
+      query = query.eq("channel_id", channelId);
+    }
+
+    const { data, error } = await query;
     if (!error && data) {
       setMessages(processMessages(data as DatabaseMessage[]));
     } else {
@@ -124,9 +126,13 @@ export default function Messages() {
       setInitialLoading(false);
       isInitialFetch.current = false;
     }
-  }, [channelId, supabase, processMessages]);
+  }, [channelId, threadId, supabase, processMessages]);
 
   const fetchChannelName = useCallback(async () => {
+    // If we're showing a thread, you can skip or adjust how you handle "channel name"
+    // For now we only fetch if there's no threadId
+    if (threadId) return;
+
     const { data, error } = await supabase
       .from("channels")
       .select("name")
@@ -138,7 +144,7 @@ export default function Messages() {
     } else {
       console.error("Error fetching channel name:", error);
     }
-  }, [channelId, supabase]);
+  }, [channelId, supabase, threadId]);
 
   // -------------------
   // Scroll logic
@@ -152,16 +158,12 @@ export default function Messages() {
     const isNearBottom =
       scrollHeight - (scrollTop + clientHeight) <= nearBottomThreshold;
 
-    // Check scroll direction: if scrolling up and not near bottom => user intentionally scrolled away
     if (scrollTop < lastScrollTop.current && !isNearBottom) {
       setHasManuallyScrolled(true);
     }
-
-    // If the user is back near the bottom, re-enable auto-scroll
     if (isNearBottom) {
       setHasManuallyScrolled(false);
     }
-
     lastScrollTop.current = scrollTop;
   }, []);
 
@@ -170,13 +172,11 @@ export default function Messages() {
     const hadMessagesBefore = previousMessageCount.current;
     previousMessageCount.current = newMessageCount;
 
-    // If it's our first load, jump to bottom
     if (initialLoading) {
       bottomRef.current?.scrollIntoView({ behavior: "auto" });
       return;
     }
 
-    // If new messages arrived and user hasn't scrolled away, scroll to bottom
     const hasNewMessages = newMessageCount > hadMessagesBefore;
     if (hasNewMessages && !hasManuallyScrolled) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -187,27 +187,34 @@ export default function Messages() {
   // Subscriptions
   // -------------------
   useEffect(() => {
-    // Reset for new channel
+    // Reset for new channel/thread
     isInitialFetch.current = true;
     fetchMessages();
     fetchChannelName();
 
+    // Choose filter condition based on threadId
+    const filterField = threadId
+      ? `parent_id=eq.${threadId}`
+      : `channel_id=eq.${channelId}`;
+
+    const channelKey = threadId || channelId;
+
     const messagesSub = supabase
-      .channel(`messages:${channelId}`)
+      .channel(`messages:${channelKey}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "messages",
-          filter: `channel_id=eq.${channelId}`,
+          filter: filterField,
         },
         fetchMessages
       )
       .subscribe();
 
     const reactionsSub = supabase
-      .channel(`reactions:${channelId}`)
+      .channel(`reactions:${channelKey}`)
       .on(
         "postgres_changes",
         {
@@ -223,7 +230,7 @@ export default function Messages() {
       supabase.removeChannel(messagesSub);
       supabase.removeChannel(reactionsSub);
     };
-  }, [channelId, fetchMessages, fetchChannelName, supabase]);
+  }, [channelId, threadId, fetchMessages, fetchChannelName, supabase]);
 
   // -------------------
   // Sending and reacting
@@ -233,12 +240,18 @@ export default function Messages() {
     attachments?: Attachment[]
   ) => {
     try {
-      const { error } = await supabase.from("messages").insert({
-        channel_id: channelId,
+      const insertData: Record<string, any> = {
         content: messageContent,
         user_id: currentUser?.id,
-        attachments: attachments,
-      });
+        channel_id: channelId,
+        attachments,
+      };
+      
+      if (threadId) {
+        insertData["parent_id"] = threadId;
+      }
+
+      const { error } = await supabase.from("messages").insert(insertData);
       if (error) throw error;
     } catch (err) {
       console.error("Error sending message:", err);
@@ -247,7 +260,6 @@ export default function Messages() {
 
   const addReaction = useCallback(
     async (messageId: string, emoji: string) => {
-      // Optimistic update
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== messageId) return msg;
@@ -273,7 +285,6 @@ export default function Messages() {
         })
       );
 
-      // Server call
       try {
         const { error } = await supabase.from("reactions").upsert({
           message_id: messageId,
@@ -283,7 +294,7 @@ export default function Messages() {
         if (error) throw error;
       } catch (err) {
         console.error("Error adding reaction:", err);
-        await fetchMessages(); // revert to server state if error
+        await fetchMessages();
       }
     },
     [currentUser?.id, supabase, fetchMessages]
@@ -291,7 +302,6 @@ export default function Messages() {
 
   const removeReaction = useCallback(
     async (messageId: string, emoji: string) => {
-      // Optimistic update
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== messageId) return msg;
@@ -313,7 +323,6 @@ export default function Messages() {
         })
       );
 
-      // Server call
       try {
         const { error } = await supabase.from("reactions").delete().match({
           message_id: messageId,
@@ -323,7 +332,7 @@ export default function Messages() {
         if (error) throw error;
       } catch (err) {
         console.error("Error removing reaction:", err);
-        await fetchMessages(); // revert to server state if error
+        await fetchMessages();
       }
     },
     [currentUser?.id, supabase, fetchMessages]
@@ -332,7 +341,7 @@ export default function Messages() {
   // -------------------
   // Render
   // -------------------
-  if (initialLoading || !currentUser)
+  if (initialLoading || !currentUser) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
         <div
@@ -341,10 +350,13 @@ export default function Messages() {
         />
       </div>
     );
+  }
 
   return (
     <div className="flex flex-col h-full">
-      <HubPresence hubId={channelId || ""} />
+      {/* If you want presence scoped to channel vs. thread, adjust accordingly. */}
+      <HubPresence hubId={threadId || channelId || ""} />
+
       <ScrollArea
         ref={messagesContainerRef}
         className="flex-1"
@@ -353,27 +365,35 @@ export default function Messages() {
         <div className="flex flex-col h-full p-4">
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-              <p className="text-lg">
-                Be the first to start chatting in #{channelName}
-              </p>
+              {threadId ? (
+                <p className="text-lg">No messages in this thread yet</p>
+              ) : (
+                <p className="text-lg">
+                  Be the first to start chatting in #{channelName}
+                </p>
+              )}
             </div>
           ) : (
-            messages.map((message) => (
-              <Message
-                key={message.id}
-                message={message}
-                currentUser={currentUser}
-                onAddReaction={addReaction}
-                onRemoveReaction={removeReaction}
-              />
-            ))
+            messages
+              .filter(message => !threadId ? !message.parent_id : true)
+              .map((message) => {
+                
+                return (
+                  <Message
+                    key={message.id}
+                    message={message}
+                    currentUser={currentUser}
+                    onAddReaction={addReaction}
+                    onRemoveReaction={removeReaction}
+                    threadCount={messages.filter(m => m.parent_id === message.id).length}
+                  />
+                );
+              })
           )}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
-      {/* Reuse existing input component */}
-      {/* Notice that MessageInput expects onSend and channelId, same as before */}
       <MessageInput onSend={handleSend} channelId={channelId || ""} />
     </div>
   );
