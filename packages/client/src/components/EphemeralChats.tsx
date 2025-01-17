@@ -137,7 +137,7 @@ export function EphemeralChatModal({
 
   return (
     <motion.div
-      className="fixed top-16 left-16 bg-white shadow-lg border rounded-md w-80 h-96 flex flex-col"
+      className="fixed bottom-16 left-24 bg-white shadow-lg border rounded-md w-80 h-96 flex flex-col"
       style={{ zIndex: 9999 }}
       drag
       dragConstraints={constraintsRef}

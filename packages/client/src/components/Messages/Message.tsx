@@ -1,11 +1,34 @@
 {/** FULL UPDATED FILE CONTENT **/}
 import React, { useState, memo } from "react";
-import EmojiPicker from "emoji-picker-react";
-import { SmilePlusIcon, ReplyIcon, MessageSquareIcon } from "lucide-react";
+import { 
+  SmilePlusIcon, 
+  MessageSquareIcon,
+  ThumbsUpIcon,
+  HeartIcon,
+  LightbulbIcon,
+  FlameIcon,
+  PartyPopper,
+  TrophyIcon,
+  HelpCircleIcon,
+  EyeIcon,
+} from "lucide-react";
 import type { ChatMessage, Reaction } from "./types";
 import { useSidebar } from "@/components/RightSidebar";
 import { cn } from "@/lib/utils";
 import Messages from "./Messages";
+
+const REACTION_ICONS = {
+  "👍": { icon: ThumbsUpIcon, label: "Agree/Support" },
+  "❤️": { icon: HeartIcon, label: "Love it" },
+  "💡": { icon: LightbulbIcon, label: "Great idea" },
+  "🔥": { icon: FlameIcon, label: "Hot take" },
+  "🎉": { icon: PartyPopper, label: "Celebration" },
+  "🏆": { icon: TrophyIcon, label: "Big win" },
+  "❓": { icon: HelpCircleIcon, label: "Needs clarification" },
+  "👀": { icon: EyeIcon, label: "Interesting" },
+} as const;
+
+type ReactionKey = keyof typeof REACTION_ICONS;
 
 /**
  * Utility to check if a file name is an image.
@@ -120,24 +143,32 @@ export const Message = memo(
             <div className="mt-1.5 flex items-center gap-2 text-gray-500">
               {/* Reactions */}
               <div className="flex gap-1 items-center">
-                {message?.reactions?.map((reaction: Reaction) => (
-                  <button
-                    key={`${message.id}-${reaction.emoji}`}
-                    onClick={() =>
-                      reaction.hasReacted
-                        ? onRemoveReaction(message.id, reaction.emoji)
-                        : onAddReaction(message.id, reaction.emoji)
-                    }
-                    className={cn(
-                      "px-2 h-6 rounded-md text-xs transition-colors flex items-center gap-1",
-                      reaction.hasReacted 
-                        ? "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400" 
-                        : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
-                    )}
-                  >
-                    {reaction.emoji} {reaction.count}
-                  </button>
-                ))}
+                {message?.reactions?.map((reaction: Reaction) => {
+                  const iconInfo = REACTION_ICONS[reaction.emoji as ReactionKey];
+                  if (!iconInfo) return null;
+                  const Icon = iconInfo.icon;
+                  
+                  return (
+                    <button
+                      key={`${message.id}-${reaction.emoji}`}
+                      onClick={() =>
+                        reaction.hasReacted
+                          ? onRemoveReaction(message.id, reaction.emoji)
+                          : onAddReaction(message.id, reaction.emoji)
+                      }
+                      className={cn(
+                        "px-2 h-6 rounded-md text-xs transition-colors flex items-center gap-1",
+                        reaction.hasReacted 
+                          ? "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400" 
+                          : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+                      )}
+                      title={iconInfo.label}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {reaction.count}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Divider when both reactions and actions exist */}
@@ -162,38 +193,47 @@ export const Message = memo(
                     {threadCount > 0 ? `${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}` : 'Reply'}
                   </button>
                 )}
-                <button
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="h-6 px-2 rounded-md text-xs flex items-center gap-1.5 transition-colors bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
-                  title="Add reaction"
-                >
-                  <SmilePlusIcon className="w-3.5 h-3.5" />
-                  React
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="h-6 px-2 rounded-md text-xs flex items-center gap-1.5 transition-colors bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+                    title="Add reaction"
+                  >
+                    <SmilePlusIcon className="w-3.5 h-3.5" />
+                    React
+                  </button>
+                  
+                  {/* Reaction picker */}
+                  {showEmojiPicker && (
+                    <div className="absolute z-10 left-full top-0 ml-2">
+                      <div
+                        className="fixed inset-0"
+                        onClick={() => setShowEmojiPicker(false)}
+                      />
+                      <div className="relative bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 p-1.5">
+                        <div className="flex gap-1">
+                          {(Object.entries(REACTION_ICONS) as [ReactionKey, typeof REACTION_ICONS[ReactionKey]][]).map(([emoji, { icon: Icon, label }]) => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                onAddReaction(message.id, emoji);
+                                setShowEmojiPicker(false);
+                              }}
+                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                              title={label}
+                            >
+                              <Icon className="w-4 h-4" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Emoji picker */}
-        {showEmojiPicker && (
-          <div className="absolute z-10 right-0 mt-1">
-            <div
-              className="fixed inset-0"
-              onClick={() => setShowEmojiPicker(false)}
-            />
-            <div className="relative">
-              <EmojiPicker
-                onEmojiClick={(emojiData) => {
-                  onAddReaction(message.id, emojiData.emoji);
-                  setShowEmojiPicker(false);
-                }}
-                width={300}
-                height={400}
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   }
