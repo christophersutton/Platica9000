@@ -117,12 +117,12 @@ export function EphemeralChatModal({
     animate: {
       opacity: 1,
       scale: 1,
-      x: shake ? [0, -10, 10, -10, 10, -5, 5, 0] : 0, // More pronounced shake
+      rotate: shake ? [0, -3, 3, -3, 3, -1, 1, 0] : 0, // Subtle rotation shake instead of translation
       transition: {
         type: "spring",
         stiffness: 300,
         damping: 20,
-        x: {
+        rotate: {
           type: "tween",
           duration: 0.5,
           ease: "easeInOut",
