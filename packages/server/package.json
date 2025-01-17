@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-   
     "dev": "bun src/index.ts --watch",
     "start": "bun src/index.ts"
   },
@@ -13,7 +12,9 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "llamaindex": "^0.8.31",
+    "openai": "^4.79.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
