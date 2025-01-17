@@ -7,7 +7,6 @@ import React, {
   useRef,
 } from "react";
 import { useSupabase } from "../hooks/use-supabase";
-import type { User } from "@supabase/supabase-js";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /**
@@ -20,10 +19,11 @@ type EphemeralChatMessage = {
 };
 
 type EphemeralChatSession = {
-  channelId: string; // e.g. ephemeral-dm:userA_userB
-  participants: [string, string]; // [userAId, userBId]
+  channelId: string;
+  participants: [string, string];
   messages: EphemeralChatMessage[];
   isOpen: boolean;
+  otherUserLeft?: boolean;
 };
 
 interface EphemeralChatContextType {
@@ -36,13 +36,11 @@ interface EphemeralChatContextType {
 /**
  * Context
  */
-const EphemeralChatContext = createContext<EphemeralChatContextType | null>(null);
+const EphemeralChatContext = createContext<EphemeralChatContextType | null>(
+  null
+);
 
-export function EphemeralChatProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function EphemeralChatProvider({ children }: { children: React.ReactNode }) {
   const { supabase, user } = useSupabase();
   const [chats, setChats] = useState<EphemeralChatSession[]>([]);
   const activeChannels = useRef<Record<string, RealtimeChannel>>({});
@@ -70,7 +68,7 @@ export function EphemeralChatProvider({
         const { from, to } = payload.payload;
         if (!user) return;
         if (to === user.id) {
-          // We are the recipient of a handshake
+          // We are the recipient
           startChat(to, from);
         }
       })
@@ -82,8 +80,7 @@ export function EphemeralChatProvider({
   }, [supabase, user]);
 
   /**
-   * Helper to create the ephemeral channel ID (both sides do it the same).
-   * Sort the two user IDs so that the channel name is consistent regardless of who initiates.
+   * Helper to create ephemeral channel ID
    */
   const getChannelId = (userA: string, userB: string) => {
     const [low, high] = [userA, userB].sort();
@@ -91,25 +88,69 @@ export function EphemeralChatProvider({
   };
 
   /**
-   * 2) Start or join a DM chat. Also sets up a broadcast subscription on the ephemeral channel.
+   * 2) Start or join a DM chat. If it already exists, just re-open & remove any countdown
    */
   const startChat = useCallback(
     (myUserId: string, otherUserId: string) => {
       const channelId = getChannelId(myUserId, otherUserId);
-      
-      // Check if we already have this chat
+
+      // Check if we already have this chat in local state
       const existingChat = chats.find((c) => c.channelId === channelId);
       if (existingChat) {
-        // Re-open if it was closed
+        // Re-open the existing chat, reset `otherUserLeft` if it was set
         setChats((prev) =>
           prev.map((chat) =>
-            chat.channelId === channelId ? { ...chat, isOpen: true } : chat
+            chat.channelId === channelId
+              ? { ...chat, isOpen: true, otherUserLeft: false }
+              : chat
           )
         );
+
+        // If the channel subscription was removed (e.g. by the leaver), restore it
+        if (!activeChannels.current[channelId]) {
+          const ephemeralChannel = supabase.channel(channelId, {
+            config: { broadcast: { self: false } },
+          });
+          ephemeralChannel
+            .on("broadcast", { event: "dm" }, (payload) => {
+              const { from, content } = payload.payload;
+              setChats((prevChats) =>
+                prevChats.map((chat) => {
+                  if (chat.channelId !== channelId) return chat;
+                  return {
+                    ...chat,
+                    messages: [
+                      ...chat.messages,
+                      { from, content, timestamp: Date.now() },
+                    ],
+                  };
+                })
+              );
+            })
+            .on("broadcast", { event: "user-left" }, (payload) => {
+              const { from } = payload.payload;
+              if (from !== user?.id) {
+                // The other user closed
+                setChats((prevChats) =>
+                  prevChats.map((chat) => {
+                    if (chat.channelId !== channelId) return chat;
+                    return {
+                      ...chat,
+                      otherUserLeft: true,
+                    };
+                  })
+                );
+              }
+            })
+            .subscribe();
+          activeChannels.current[channelId] = ephemeralChannel;
+        }
+
+        // Return so we don't create a *second* ephemeral chat
         return;
       }
 
-      // Create new chat session in local state
+      // Otherwise create a fresh chat session
       const newSession: EphemeralChatSession = {
         channelId,
         participants: [myUserId, otherUserId],
@@ -118,9 +159,10 @@ export function EphemeralChatProvider({
       };
       setChats((prev) => [...prev, newSession]);
 
-      // Check if we already have a channel
+      // Ensure there's no stale subscription
       if (activeChannels.current[channelId]) {
-        return;
+        supabase.removeChannel(activeChannels.current[channelId]);
+        delete activeChannels.current[channelId];
       }
 
       // Create and store new channel subscription
@@ -144,22 +186,33 @@ export function EphemeralChatProvider({
             })
           );
         })
+        .on("broadcast", { event: "user-left" }, (payload) => {
+          const { from } = payload.payload;
+          if (from !== user?.id) {
+            setChats((prevChats) =>
+              prevChats.map((chat) => {
+                if (chat.channelId !== channelId) return chat;
+                return {
+                  ...chat,
+                  otherUserLeft: true,
+                };
+              })
+            );
+          }
+        })
         .subscribe();
 
-      // Store the channel reference
       activeChannels.current[channelId] = ephemeralChannel;
     },
-    [chats, supabase]
+    [chats, supabase, user?.id]
   );
 
   /**
-   * 3) Initiate chat from local user to another user -> broadcast handshake
+   * 3) Public handshake => local startChat
    */
   const startChatPublic = useCallback(
     (myUserId: string, otherUserId: string) => {
       if (!myUserId || !otherUserId) return;
-      
-      // Send handshake
       const handshakeChannel = supabase.channel("ephemeral-handshake");
       handshakeChannel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -168,7 +221,6 @@ export function EphemeralChatProvider({
             event: "request-chat",
             payload: { from: myUserId, to: otherUserId },
           });
-          // Clean up handshake channel after sending
           supabase.removeChannel(handshakeChannel);
         }
       });
@@ -176,7 +228,7 @@ export function EphemeralChatProvider({
     [supabase]
   );
 
-  // We'll merge the above two steps: broadcast the handshake, then local call `startChat`
+  // Merge handshake + local
   const startChatCombined = useCallback(
     (myUserId: string, otherUserId: string) => {
       startChatPublic(myUserId, otherUserId);
@@ -186,58 +238,69 @@ export function EphemeralChatProvider({
   );
 
   /**
-   * 4) Send an ephemeral direct message
+   * 4) Send ephemeral direct message
    */
-  const sendMessage = useCallback((channelId: string, content: string) => {
-    const from = user?.id;
-    if (!from) return;
+  const sendMessage = useCallback(
+    (channelId: string, content: string) => {
+      const from = user?.id;
+      if (!from) return;
 
-    // Get existing channel
-    const channel = activeChannels.current[channelId];
-    if (!channel) {
-      console.error('No active channel found for', channelId);
-      return;
-    }
+      const channel = activeChannels.current[channelId];
+      if (!channel) {
+        console.error("No active channel found for", channelId);
+        return;
+      }
 
-    // Send message on existing channel
-    channel.send({
-      type: "broadcast",
-      event: "dm",
-      payload: { from, content },
-    });
+      channel.send({
+        type: "broadcast",
+        event: "dm",
+        payload: { from, content },
+      });
 
-    // Local echo
-    setChats((prev) =>
-      prev.map((chat) => {
-        if (chat.channelId !== channelId) return chat;
-        return {
-          ...chat,
-          messages: [
-            ...chat.messages,
-            { from, content, timestamp: Date.now() },
-          ],
-        };
-      })
-    );
-  }, [user]);
+      // Local echo
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (chat.channelId !== channelId) return chat;
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              { from, content, timestamp: Date.now() },
+            ],
+          };
+        })
+      );
+    },
+    [user]
+  );
 
   /**
-   * 5) Close ephemeral chat
+   * 5) Close ephemeral chat => broadcast 'user-left' => remove from local state
    */
-  const closeChat = useCallback((channelId: string) => {
-    // Remove channel subscription
-    const channel = activeChannels.current[channelId];
-    if (channel) {
-      supabase.removeChannel(channel);
-      delete activeChannels.current[channelId];
-    }
+  const closeChat = useCallback(
+    (channelId: string) => {
+      const from = user?.id;
+      const channel = activeChannels.current[channelId];
 
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat.channelId === channelId ? { ...chat, isOpen: false } : chat
-      )
-    );
-  }, [supabase]);
+      if (channel && from) {
+        channel.send({
+          type: "broadcast",
+          event: "user-left",
+          payload: { from },
+        });
+      }
+      if (channel) {
+        supabase.removeChannel(channel);
+        delete activeChannels.current[channelId];
+      }
+
+      // Remove from state entirely
+      setChats((prevChats) =>
+        prevChats.filter((chat) => chat.channelId !== channelId)
+      );
+    },
+    [supabase, user?.id]
+  );
 
   return (
     <EphemeralChatContext.Provider
@@ -256,9 +319,7 @@ export function EphemeralChatProvider({
 export function useEphemeralChat() {
   const ctx = useContext(EphemeralChatContext);
   if (!ctx) {
-    throw new Error(
-      "useEphemeralChat must be used within EphemeralChatProvider"
-    );
+    throw new Error("useEphemeralChat must be used within EphemeralChatProvider");
   }
   return ctx;
 }
