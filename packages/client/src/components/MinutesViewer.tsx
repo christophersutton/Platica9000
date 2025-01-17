@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { format } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import { ScrollArea } from "./ui/scroll-area";
 import { Button } from "./ui/button";
@@ -42,10 +42,10 @@ export function MinutesViewer({ minuteId }: MinutesViewerProps) {
     const fetchMinutes = async () => {
       setIsLoading(true);
       try {
-        // Get all minutes from the last month
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+        // Get all minutes from the last month, using UTC dates
+        const now = new Date();
+        const thirtyDaysAgo = subDays(now, 30);
+        
         const { data, error } = await supabase
           .from("minutes")
           .select("*")
@@ -104,10 +104,10 @@ export function MinutesViewer({ minuteId }: MinutesViewerProps) {
                   <AccordionTrigger className="hover:no-underline py-3">
                     <div className="flex flex-col items-start">
                       <div className="text-sm font-medium">
-                        {format(new Date(minute.time_period_start), "MMMM d, yyyy")}
+                        {format(parseISO(minute.time_period_start), "MMMM d, yyyy")}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(new Date(minute.time_period_start), "h:mm a")}
+                        {format(parseISO(minute.time_period_start), "h:mm a")}
                       </div>
                     </div>
                   </AccordionTrigger>

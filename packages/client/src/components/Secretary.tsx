@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Badge } from "./ui/badge";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { ChatMessage } from "./Messages/types";
 import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
@@ -27,7 +27,7 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({ message }) =>
 
   const handleViewMinute = (doc: SourceDocument) => {
     openTab({
-      title: `Minutes from ${format(new Date(doc.date), "MMM d, yyyy")}`,
+      title: `${format(parseISO(doc.date), "MM/dd/yy")} Standup`,
       content: <MinutesViewer minuteId={doc.id} />,
       type: "document",
     });
@@ -67,7 +67,7 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({ message }) =>
                     className="cursor-pointer hover:bg-gray-200"
                     onClick={() => handleViewMinute(doc)}
                   >
-                    {format(new Date(doc.date), "MMM d, yyyy")}
+                    {format(parseISO(doc.date), "MMM d, yyyy")}
                   </Badge>
                 ))}
               </div>

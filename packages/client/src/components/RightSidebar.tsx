@@ -25,14 +25,7 @@ const SidebarContext = createContext<SidebarContextType | null>(null);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tabs, setTabs] = useState<Tab[]>([
-    {
-      id: "minutes",
-      title: "Minutes",
-      content: <div>Minutes</div>,
-      type: "document",
-    },
-  ]);
+  const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   const openTab = (newTab: Omit<Tab, "id">) => {
