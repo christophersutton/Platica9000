@@ -98,7 +98,7 @@ export function OnlineUsersList() {
             >
               <div className="relative">
                 <img
-                  src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.email || u.id}`}
+                  src={`https://api.dicebear.com/7.x/miniavs/svg?seed=${u.email || u.id}`}
                   alt={u.full_name || "User avatar"}
                   className="w-10 h-10 rounded-full bg-gray-200"
                 />

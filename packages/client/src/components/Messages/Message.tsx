@@ -74,8 +74,8 @@ export const Message = memo(
         <div className="flex items-start space-x-3">
           <img
             src={
-              message.users?.avatar_url ||
-              `https://api.dicebear.com/7.x/bottts/svg?seed=${message.users?.email}`
+              
+              `https://api.dicebear.com/7.x/miniavs/svg?seed=${message.users?.email}`
             }
             alt={message.users?.full_name || "Anonymous User"}
             className="w-8 h-8 rounded-full"

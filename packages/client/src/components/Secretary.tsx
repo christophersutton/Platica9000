@@ -10,14 +10,14 @@ import { format, parseISO } from "date-fns";
 import type { ChatMessage } from "./Messages/types";
 import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
-import * as chrono from 'chrono-node';
+import * as chrono from "chrono-node";
 import { useSupabase } from "../hooks/use-supabase";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 const extractDatesFromContent = (content: string): Date[] => {
   const parsedDates = chrono.parse(content, new Date(), { forwardDate: false });
-  
+
   return parsedDates
     .map((result) => result.start.date())
     .filter((date): date is Date => date !== null);
@@ -72,12 +72,9 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
     <div className="message relative mb-4">
       <div className="flex items-start space-x-3">
         <img
-          src={
-            message.users?.avatar_url ||
-            `https://api.dicebear.com/7.x/bottts/svg?seed=${
-              message.users?.email || (message.isUser ? "user" : "assistant")
-            }`
-          }
+          src={`https://api.dicebear.com/7.x/miniavs/svg?seed=${
+            message.users?.email || (message.isUser ? "user" : "assistant")
+          }`}
           alt={
             message.users?.full_name || (message.isUser ? "You" : "Assistant")
           }
@@ -149,7 +146,9 @@ export function Secretary() {
 
     try {
       // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         throw new Error("No active session");
       }
@@ -158,8 +157,8 @@ export function Secretary() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "text/event-stream",
-          "Authorization": `Bearer ${session.access_token}`,
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(requestBody),
       });
