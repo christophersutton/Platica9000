@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState } from "react";
 import { X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { FileSearch } from "./FileSearch";
 
 // Types
 type Tab = {
   id: string;
   title: string;
   content: React.ReactNode;
-  type: "thread" | "document";
+  type: "thread" | "document" | "search";
 };
 
 type SidebarContextType = {
@@ -25,8 +26,15 @@ const SidebarContext = createContext<SidebarContextType | null>(null);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<Tab[]>([
+    // {
+    //   id: "search",
+    //   title: "Search Files",
+    //   content: <FileSearch />,
+    //   type: "search"
+    // }
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string | null>("search");
 
   const openTab = (newTab: Omit<Tab, "id">) => {
     const id = Math.random().toString(36).substr(2, 9);
