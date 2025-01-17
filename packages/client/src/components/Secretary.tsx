@@ -10,6 +10,15 @@ import { format, parseISO } from "date-fns";
 import type { ChatMessage } from "./Messages/types";
 import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
+import * as chrono from 'chrono-node';
+
+const extractDatesFromContent = (content: string): Date[] => {
+  const parsedDates = chrono.parse(content, new Date(), { forwardDate: false });
+  console.log(parsedDates);
+  return parsedDates
+    .map((result) => result.start.date())
+    .filter((date): date is Date => date !== null);
+};
 
 // Extend ChatMessage so we can include 'isUser' + optional 'sourceDocs'
 interface SourceDocument {
@@ -17,13 +26,36 @@ interface SourceDocument {
   content: string;
   id: string;
 }
-interface SecretaryMessage extends Omit<ChatMessage, 'created_at'> {
+interface SecretaryMessage extends Omit<ChatMessage, "created_at"> {
   isUser: boolean;
   sourceDocs?: SourceDocument[];
 }
 
-const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({ message }) => {
+const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
+  message,
+}) => {
   const { openTab } = useSidebar();
+
+  const displayDocs = React.useMemo(() => {
+    if (!message.sourceDocs || message.isUser) return [];
+
+    // Extract dates from message content
+    const mentionedDates = extractDatesFromContent(message.content);
+
+    // If no dates mentioned, return all docs
+    if (mentionedDates.length === 0) return message.sourceDocs;
+
+    // Filter docs to only include those matching mentioned dates
+    return message.sourceDocs.filter((doc) => {
+      const docDate = parseISO(doc.date);
+      return mentionedDates.some(
+        (mentionedDate) =>
+          docDate.getFullYear() === mentionedDate.getFullYear() &&
+          docDate.getMonth() === mentionedDate.getMonth() &&
+          docDate.getDate() === mentionedDate.getDate()
+      );
+    });
+  }, [message.content, message.sourceDocs, message.isUser]);
 
   const handleViewMinute = (doc: SourceDocument) => {
     openTab({
@@ -55,23 +87,22 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({ message }) =>
           <div className="prose prose-sm dark:prose-invert mb-2">
             {message.content}
           </div>
-          {!message.isUser &&
-            message.sourceDocs &&
-            message.sourceDocs.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="text-sm text-gray-500">Sources:</span>
-                {message.sourceDocs.map((doc, index) => (
-                  <Badge
-                    key={index}
-                    variant="secondary"
-                    className="cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleViewMinute(doc)}
-                  >
-                    {format(parseISO(doc.date), "MMM d, yyyy")}
-                  </Badge>
-                ))}
-              </div>
-            )}
+          {!message.isUser && displayDocs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="text-sm text-gray-500">Sources:</span>
+
+              {displayDocs.map((doc, index) => (
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-gray-200"
+                  onClick={() => handleViewMinute(doc)}
+                >
+                  {format(parseISO(doc.date), "MMM d, yyyy")}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -109,20 +140,25 @@ export function Secretary() {
     };
 
     try {
-      const response = await fetch("https://pony-living-lively.ngrok-free.app/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        "https://pony-living-lively.ngrok-free.app/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response
           .json()
           .catch(() => ({ error: "Network response was not ok" }));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
       }
 
       if (!response.body) {
@@ -205,7 +241,9 @@ export function Secretary() {
         <div className="flex flex-col h-full p-4">
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-              <p className="text-lg">Ask me anything about the meeting minutes!</p>
+              <p className="text-lg">
+                Ask me anything about the meeting minutes!
+              </p>
             </div>
           ) : (
             <>
