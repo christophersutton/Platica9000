@@ -12,6 +12,8 @@ import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
 import * as chrono from 'chrono-node';
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+
 const extractDatesFromContent = (content: string): Date[] => {
   const parsedDates = chrono.parse(content, new Date(), { forwardDate: false });
   console.log(parsedDates);
@@ -115,6 +117,10 @@ export function Secretary() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState("");
 
+  if (!SERVER_URL) {
+    throw new Error("SERVER_URL is not defined");
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isLoading) return;
@@ -140,8 +146,7 @@ export function Secretary() {
     };
 
     try {
-      
-      const response = await fetch("https://pony-living-lively.ngrok-free.app/chat", {
+      const response = await fetch(SERVER_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
