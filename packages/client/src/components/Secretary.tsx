@@ -7,36 +7,30 @@ import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Badge } from "./ui/badge";
 import { format } from "date-fns";
+import type { ChatMessage } from "./Messages/types";
+import { useSidebar } from "./RightSidebar"; // <-- new
 import { MinutesViewer } from "./MinutesViewer";
 
-// Import the base ChatMessage type from the updated Messages/types
-import type { ChatMessage } from "./Messages/types";
-
+// Extend ChatMessage so we can include 'isUser' + optional 'sourceDocs'
 interface SourceDocument {
   date: string;
   content: string;
-  id: string;  // Added to store the minute ID
+  id: string;
 }
-
-// Extend ChatMessage so we can include 'isUser' and optional 'sourceDocs'
 interface SecretaryMessage extends ChatMessage {
   isUser: boolean;
   sourceDocs?: SourceDocument[];
 }
 
-interface CustomEventData extends Event {
-  data: string;
-}
-
-const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
-  message,
-}) => {
-  const [isMinutesOpen, setIsMinutesOpen] = useState(false);
-  const [selectedMinuteId, setSelectedMinuteId] = useState<string | undefined>();
+const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({ message }) => {
+  const { openTab } = useSidebar();
 
   const handleViewMinute = (doc: SourceDocument) => {
-    setSelectedMinuteId(doc.id);
-    setIsMinutesOpen(true);
+    openTab({
+      title: `Minutes from ${format(new Date(doc.date), "MMM d, yyyy")}`,
+      content: <MinutesViewer minuteId={doc.id} />,
+      type: "document",
+    });
   };
 
   return (
@@ -61,7 +55,6 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
           <div className="prose prose-sm dark:prose-invert mb-2">
             {message.content}
           </div>
-
           {!message.isUser &&
             message.sourceDocs &&
             message.sourceDocs.length > 0 && (
@@ -81,12 +74,6 @@ const MessageDisplay: React.FC<{ message: SecretaryMessage }> = ({
             )}
         </div>
       </div>
-
-      <MinutesViewer
-        minuteId={selectedMinuteId}
-        isOpen={isMinutesOpen}
-        onClose={() => setIsMinutesOpen(false)}
-      />
     </div>
   );
 };
@@ -95,7 +82,7 @@ export function Secretary() {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<SecretaryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStreamingMessage, setCurrentStreamingMessage] = useState<string>("");
+  const [currentStreamingMessage, setCurrentStreamingMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,20 +93,19 @@ export function Secretary() {
       content: query,
       isUser: true,
     };
-
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
     setCurrentStreamingMessage("");
 
     const requestBody = {
       query: query.trim(),
-      history: messages.map(msg => ({
+      history: messages.map((msg) => ({
         content: msg.content,
-        isUser: msg.isUser
+        isUser: msg.isUser,
       })),
       previousDocIds: messages
-        .filter(msg => !msg.isUser && msg.sourceDocs)
-        .flatMap(msg => msg.sourceDocs?.map(doc => doc.id) || [])
+        .filter((msg) => !msg.isUser && msg.sourceDocs)
+        .flatMap((msg) => msg.sourceDocs?.map((doc) => doc.id) || []),
     };
 
     try {
@@ -127,13 +113,15 @@ export function Secretary() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "text/event-stream",
+          Accept: "text/event-stream",
         },
         body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Network response was not ok' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Network response was not ok" }));
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
@@ -163,55 +151,46 @@ export function Secretary() {
             const lines = event.split("\n");
             const eventType = lines[0].replace("event: ", "");
             const data = lines[1]?.replace("data: ", "");
-
             if (!data) continue;
 
-            try {
-              const parsedData = JSON.parse(data);
-
-              switch (eventType) {
-                case "message":
-                  if (parsedData.content) {
-                    streamedContent += parsedData.content;
-                    setCurrentStreamingMessage(streamedContent);
-                  }
-                  break;
-                case "docs":
-                  if (parsedData.sourceDocs) {
-                    sourceDocs = parsedData.sourceDocs;
-                  }
-                  break;
-                case "error":
-                  throw new Error(parsedData.error || "Unknown streaming error");
-                case "done":
-                  const assistantMessage: SecretaryMessage = {
-                    id: (Date.now() + 1).toString(),
-                    content: streamedContent,
-                    isUser: false,
-                    sourceDocs,
-                  };
-                  setMessages((prev) => [...prev, assistantMessage]);
-                  setCurrentStreamingMessage("");
-                  setQuery("");
-                  setIsLoading(false);
-                  return;
-              }
-            } catch (error) {
-              console.error("Error parsing event data:", error);
-              throw new Error("Failed to parse server response");
+            const parsedData = JSON.parse(data);
+            switch (eventType) {
+              case "message":
+                if (parsedData.content) {
+                  streamedContent += parsedData.content;
+                  setCurrentStreamingMessage(streamedContent);
+                }
+                break;
+              case "docs":
+                if (parsedData.sourceDocs) {
+                  sourceDocs = parsedData.sourceDocs;
+                }
+                break;
+              case "error":
+                throw new Error(parsedData.error || "Unknown streaming error");
+              case "done":
+                const assistantMessage: SecretaryMessage = {
+                  id: (Date.now() + 1).toString(),
+                  content: streamedContent,
+                  isUser: false,
+                  sourceDocs,
+                };
+                setMessages((prev) => [...prev, assistantMessage]);
+                setCurrentStreamingMessage("");
+                setQuery("");
+                setIsLoading(false);
+                return;
             }
           }
         }
-      } catch (error) {
-        throw error;
       } finally {
         reader.releaseLock();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error:", error);
       const errorMessage: SecretaryMessage = {
         id: (Date.now() + 1).toString(),
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        content: `Error: ${error?.message || "Unknown error occurred"}`,
         isUser: false,
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -226,9 +205,7 @@ export function Secretary() {
         <div className="flex flex-col h-full p-4">
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-              <p className="text-lg">
-                Ask me anything about the meeting minutes!
-              </p>
+              <p className="text-lg">Ask me anything about the meeting minutes!</p>
             </div>
           ) : (
             <>
@@ -239,7 +216,7 @@ export function Secretary() {
                 <div className="message relative mb-4">
                   <div className="flex items-start space-x-3">
                     <img
-                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=assistant`}
+                      src="https://api.dicebear.com/7.x/bottts/svg?seed=assistant"
                       alt="Assistant"
                       className="w-8 h-8 rounded-full"
                     />
