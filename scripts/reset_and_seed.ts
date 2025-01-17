@@ -56,6 +56,51 @@ async function resetAndSeed() {
   try {
     console.log('Starting database reset and seed...')
 
+    // Clean up existing data in reverse order of dependencies
+    console.log('Cleaning up existing data...')
+    
+    // Delete reactions first since they depend on messages
+    const { error: reactionsError } = await supabase
+      .from('reactions')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all rows
+    if (reactionsError) console.error('Error deleting reactions:', reactionsError)
+    
+    // Delete messages before channels since they reference channels
+    const { error: messagesError } = await supabase
+      .from('messages')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+    if (messagesError) console.error('Error deleting messages:', messagesError)
+    
+    // Delete channel members before channels
+    const { error: channelMembersError } = await supabase
+      .from('channel_members')
+      .delete()
+      .neq('channel_id', '00000000-0000-0000-0000-000000000000')
+    if (channelMembersError) console.error('Error deleting channel members:', channelMembersError)
+    
+    // Delete channels
+    const { error: deleteChannelsError } = await supabase
+      .from('channels')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+    if (deleteChannelsError) console.error('Error deleting channels:', deleteChannelsError)
+    
+    // Delete organization members before organization
+    const { error: orgMembersError } = await supabase
+      .from('organization_members')
+      .delete()
+      .neq('organization_id', '00000000-0000-0000-0000-000000000000')
+    if (orgMembersError) console.error('Error deleting organization members:', orgMembersError)
+    
+    // Delete organizations
+    const { error: orgsError } = await supabase
+      .from('organizations')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+    if (orgsError) console.error('Error deleting organizations:', orgsError)
+
     // Create our seed users
     const seedUsers = [
       { email: 'alex.kim@platica.com', full_name: 'Alex Kim', avatar_url: 'https://api.dicebear.com/9.x/dylan/svg?seed=Alex' },
@@ -160,16 +205,44 @@ async function resetAndSeed() {
         }))
       )
 
-    // Get existing channels
-    const { data: channels } = await supabase
-      .from('channels')
-      .select('*')
-      .in('name', ['Engineering', 'Marketing', 'Random'])
+    // Create the default channels
+    console.log('Creating channels...')
+    const defaultChannels = [
+      {
+        organization_id: org.id,
+        name: 'Engineering',
+        description: 'Technical discussions and updates',
+        message_expiration_hours: 168 // 1 week
+      },
+      {
+        organization_id: org.id,
+        name: 'Marketing',
+        description: 'Marketing campaigns and brand discussions',
+        message_expiration_hours: 168
+      },
+      {
+        organization_id: org.id,
+        name: 'Random',
+        description: 'Water cooler chat and fun stuff',
+        message_expiration_hours: 168
+      }
+    ]
 
-    if (!channels || channels.length === 0) throw new Error('Required channels not found')
+    const { data: createdChannels, error: createChannelsError } = await supabase
+      .from('channels')
+      .insert(defaultChannels)
+      .select()
+
+    if (createChannelsError) {
+      throw new Error(`Failed to create channels: ${createChannelsError.message}`)
+    }
+
+    if (!createdChannels || createdChannels.length === 0) {
+      throw new Error('No channels were created')
+    }
 
     // Add all users to all channels
-    const channelMembers = channels.flatMap(channel =>
+    const channelMembers = createdChannels.flatMap(channel =>
       users.map(user => ({
         channel_id: channel.id,
         user_id: user.id,
@@ -180,7 +253,7 @@ async function resetAndSeed() {
     await supabase.from('channel_members').insert(channelMembers)
 
     // Get channel IDs by name for easy reference
-    const channelMap = channels.reduce((acc, channel) => {
+    const channelMap = createdChannels.reduce((acc, channel) => {
       acc[channel.name] = channel.id
       return acc
     }, {} as Record<string, string>)
@@ -188,28 +261,53 @@ async function resetAndSeed() {
     // Seed engineering channel messages
     const engineeringMessages: Message[] = [
       {
-        content: "Just pushed the logging system refactor. Anyone available for code review?",
+        content: "Starting the logging system refactor today to handle our new microservices. Will need eyes on the error formatting changes.",
         user_id: getUserIdWithFallback('Alex Kim', 0),
         channel_id: channelMap['Engineering']
       },
       {
-        content: "I'll take a look. Is this the one with the new error formatting?",
-        user_id: getUserIdWithFallback('Riley Chen', 1),
+        content: "Found some inconsistencies in error handling across services. @James @Riley - can you check if this affects your components?",
+        user_id: getUserIdWithFallback('Alex Kim', 0),
         channel_id: channelMap['Engineering']
       },
       {
-        content: "The batch operations are timing out on large datasets. Looking into potential memory leaks.",
-        user_id: getUserIdWithFallback('Maya Patel', 2),
+        content: "Heads up team - identified a potential memory leak in the admin dashboard during batch operations. Looking into the event-stream-processor package as the culprit.",
+        user_id: getUserIdWithFallback('Maya Patel', 1),
         channel_id: channelMap['Engineering']
       },
       {
-        content: "@Maya I'm seeing similar timeouts in the reporting module. Could be related?",
-        user_id: getUserIdWithFallback('Riley Chen', 1),
+        content: "@Maya I'm seeing similar timeouts in the reporting module. Could be related to the memory leak?",
+        user_id: getUserIdWithFallback('Riley Chen', 2),
         channel_id: channelMap['Engineering']
       },
       {
-        content: "Security audit findings: we need to standardize permission checks across services",
+        content: "Just pushed the permission migration script. Running final validation tests now. Found and fixed a caching issue during testing.",
         user_id: getUserIdWithFallback('James Wilson', 3),
+        channel_id: channelMap['Engineering']
+      },
+      {
+        content: "Performance test results from last night: Memory usage improved by 30% after optimizations! 🎉",
+        user_id: getUserIdWithFallback('Maya Patel', 1),
+        channel_id: channelMap['Engineering']
+      },
+      {
+        content: "Automated report generation prototype is showing 95% accuracy with last month's data. Adding support for custom date ranges next.",
+        user_id: getUserIdWithFallback('Riley Chen', 2),
+        channel_id: channelMap['Engineering']
+      },
+      {
+        content: "Security team reviewed the permission system concerns. Created a detailed runbook for the ops team with their feedback.",
+        user_id: getUserIdWithFallback('James Wilson', 3),
+        channel_id: channelMap['Engineering']
+      },
+      {
+        content: "Error code standardization is merged to main! 🎉 All microservices now use the unified logging structure.",
+        user_id: getUserIdWithFallback('Alex Kim', 0),
+        channel_id: channelMap['Engineering']
+      },
+      {
+        content: "Quick update: The front-end library upgrade discussion is scheduled for next week. Please review the RFC I shared in Notion.",
+        user_id: getUserIdWithFallback('Maya Patel', 1),
         channel_id: channelMap['Engineering']
       }
     ]
@@ -225,22 +323,134 @@ async function resetAndSeed() {
       if (memoryLeakMsg) {
         await supabase.from('messages').insert([
           {
-            content: "Can you share which library? We might be using it elsewhere.",
+            content: "Which version of event-stream-processor are we using? We should check if there's a patch available.",
             user_id: getUserIdWithFallback('Alex Kim', 0),
             channel_id: channelMap['Engineering'],
             parent_message_id: memoryLeakMsg.id
           },
           {
-            content: "It's the event-stream-processor package. Opening an issue with them now.",
-            user_id: getUserIdWithFallback('Maya Patel', 2),
+            content: "We're on 2.4.1. I'll open an issue with them and start working on a temporary fix in our code.",
+            user_id: getUserIdWithFallback('Maya Patel', 1),
             channel_id: channelMap['Engineering'],
             parent_message_id: memoryLeakMsg.id
           },
           {
-            content: "Good catch. Let's audit other packages while we're at it.",
+            content: "I can help profile the memory usage if you need another set of eyes. The reporting service has similar patterns.",
+            user_id: getUserIdWithFallback('Riley Chen', 2),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: memoryLeakMsg.id
+          },
+          {
+            content: "Good idea to audit other services while we're at it. I'll set up memory monitoring across all instances.",
             user_id: getUserIdWithFallback('James Wilson', 3),
             channel_id: channelMap['Engineering'],
             parent_message_id: memoryLeakMsg.id
+          }
+        ])
+      }
+
+      // Add thread about permission migration
+      const permissionMsg = engMsgs.find(msg => msg.content.includes('permission migration script'))
+      if (permissionMsg) {
+        await supabase.from('messages').insert([
+          {
+            content: "Great work! When are we planning to run this in prod?",
+            user_id: getUserIdWithFallback('Alex Kim', 0),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: permissionMsg.id
+          },
+          {
+            content: "Tentatively next Wednesday. Working with ops team on the rollout plan.",
+            user_id: getUserIdWithFallback('James Wilson', 3),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: permissionMsg.id
+          },
+          {
+            content: "Make sure we have the rollback procedure documented. Security team might want to review that too.",
+            user_id: getUserIdWithFallback('Maya Patel', 1),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: permissionMsg.id
+          }
+        ])
+      }
+
+      // Add thread about logging system refactor
+      const loggingMsg = engMsgs.find(msg => msg.content.includes('logging system refactor'))
+      if (loggingMsg) {
+        await supabase.from('messages').insert([
+          {
+            content: "I can review this today. Are you planning to update the error codes in all microservices at once?",
+            user_id: getUserIdWithFallback('Riley Chen', 2),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: loggingMsg.id
+          },
+          {
+            content: "Let's do it in phases. Starting with the core services first, then rolling out to others.",
+            user_id: getUserIdWithFallback('Alex Kim', 0),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: loggingMsg.id
+          },
+          {
+            content: "Good approach. We should document the new error code standards in the wiki.",
+            user_id: getUserIdWithFallback('James Wilson', 3),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: loggingMsg.id
+          },
+          {
+            content: "I'll help with the documentation. Already have some examples from the admin dashboard.",
+            user_id: getUserIdWithFallback('Maya Patel', 1),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: loggingMsg.id
+          }
+        ])
+      }
+
+      // Add thread about automated reporting
+      const reportingMsg = engMsgs.find(msg => msg.content.includes('report generation prototype'))
+      if (reportingMsg) {
+        await supabase.from('messages').insert([
+          {
+            content: "That's impressive accuracy! What's causing the 5% discrepancy?",
+            user_id: getUserIdWithFallback('Maya Patel', 1),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: reportingMsg.id
+          },
+          {
+            content: "Mostly edge cases with timezone handling in historical data. Working on a fix.",
+            user_id: getUserIdWithFallback('Riley Chen', 2),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: reportingMsg.id
+          },
+          {
+            content: "Let me know if you need help with the timezone logic. Had similar issues in the logging system.",
+            user_id: getUserIdWithFallback('Alex Kim', 0),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: reportingMsg.id
+          }
+        ])
+      }
+
+      // Add thread about front-end library upgrade
+      const frontendMsg = engMsgs.find(msg => msg.content.includes('front-end library upgrade'))
+      if (frontendMsg) {
+        await supabase.from('messages').insert([
+          {
+            content: "Just reviewed the RFC. Are we planning to handle the breaking changes in one PR or split them up?",
+            user_id: getUserIdWithFallback('Riley Chen', 2),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: frontendMsg.id
+          },
+          {
+            content: "I'd recommend splitting it up by feature area. Less risky that way.",
+            user_id: getUserIdWithFallback('James Wilson', 3),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: frontendMsg.id
+          },
+          {
+            content: "Agreed. I'll create a migration plan with smaller PRs. We can discuss the order in the meeting.",
+            user_id: getUserIdWithFallback('Maya Patel', 1),
+            channel_id: channelMap['Engineering'],
+            parent_message_id: frontendMsg.id
           }
         ])
       }
