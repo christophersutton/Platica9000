@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams } from "react-router-dom";
 import { useSupabase } from "../../hooks/use-supabase";
 import { ScrollArea } from "../ui/scroll-area";
-import { HubPresence } from "../hubs/HubPresence";
+
 import { Message } from "./Message";
 import MessageInput from "./MessageInput";
 import type { ChatMessage, ReactionMap, Reaction, Attachment } from "./types";
@@ -355,7 +355,7 @@ export default function Messages({ threadId }: MessagesProps) {
   return (
     <div className="flex flex-col h-full">
       {/* If you want presence scoped to channel vs. thread, adjust accordingly. */}
-      <HubPresence hubId={threadId || channelId || ""} />
+      {/* <HubPresence hubId={threadId || channelId || ""} /> */}
 
       <ScrollArea
         ref={messagesContainerRef}
