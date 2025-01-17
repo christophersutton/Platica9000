@@ -35,3 +35,26 @@ export async function streamChatCompletion(
   }
   return accumulatedText;
 }
+
+export async function textDocumentSummary(
+  
+  contextText: string,
+  
+): Promise<string> {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4-turbo-preview",
+    messages: [
+      {
+        role: "system",
+        content: "Create a concise summary (max 300 words) of the document that captures its key points, main decisions, and essential context. Focus on unique, identifying information that would help retrieve this document when relevant. Format in plain text without markdown. Exclude generic phrases, greetings, or meta-commentary. The summary should be detailed enough to distinguish this document from similar ones, but brief enough to fit in a single embedding."
+      },
+      {
+        role: "user", 
+        content: `Document to summarize:\n\n${contextText}`
+      }
+    ],
+    temperature: 0.2,
+  });
+
+  return completion.choices[0]?.message?.content || "";
+}

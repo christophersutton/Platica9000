@@ -1,8 +1,8 @@
 import { corsHeaders, sseHeaders, RELEVANCE_THRESHOLD_GPT } from "../config";
 import { RequestBody, MessageRole } from "../types";
-import { searchPinecone, fetchMinutesContent, streamChatCompletion } from "../services";
+import { fetchMinutesContent, streamChatCompletion } from "../services";
 import { prepareSourceDocs } from "../utils";
-
+import { PineconeClient } from "../services/pineconeService";
 
 export async function handleChatRequest(req: Request) {
   try {
@@ -11,19 +11,22 @@ export async function handleChatRequest(req: Request) {
     // Parse request body
     let body: RequestBody;
     try {
-      body = await req.json() as RequestBody;
+      body = (await req.json()) as RequestBody;
     } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid request body" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Invalid request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Validate query parameter
     if (!body.query?.trim()) {
       return new Response(
         JSON.stringify({ error: "Query parameter is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -31,10 +34,9 @@ export async function handleChatRequest(req: Request) {
 
     // If not requesting SSE stream, just return a simple JSON response
     if (!isStreamRequest) {
-      return new Response(
-        JSON.stringify({ status: "ok", query }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ status: "ok", query }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.log(`\nProcessing query: "${query}"`);
@@ -45,19 +47,25 @@ export async function handleChatRequest(req: Request) {
       async start(controller) {
         try {
           // Search using Pinecone
+          const pinecone = PineconeClient.getInstance();
+          pinecone.registerIndex("minutes"); // Assuming "minutes" is your index name
+
+          // Replace the existing Pinecone search with:
           console.log("\nExecuting Pinecone integrated search...");
-          const searchResults = await searchPinecone(query);
-          console.log("\nPinecone search results:", JSON.stringify(searchResults, null, 2));
+          const searchResults = await pinecone.search("minutes", query);
+          console.log;
 
           // Filter by GPT threshold
           const matchIds = searchResults
-            .filter(hit => hit.score >= RELEVANCE_THRESHOLD_GPT)
-            .map(hit => hit.id);
+            .filter((hit) => hit.score >= RELEVANCE_THRESHOLD_GPT)
+            .map((hit) => hit.id);
 
           console.log("\nMatched IDs above GPT threshold:", matchIds);
 
           // Combine with previous doc IDs
-          const allDocIds = Array.from(new Set([...matchIds, ...previousDocIds]));
+          const allDocIds = Array.from(
+            new Set([...matchIds, ...previousDocIds])
+          );
           console.log("All doc IDs to fetch:", allDocIds);
 
           // Fetch content from Supabase
@@ -65,26 +73,28 @@ export async function handleChatRequest(req: Request) {
           const contentMap = await fetchMinutesContent(allDocIds);
 
           // Attach content to results
-          const results = searchResults.map(result => ({
+          const results = searchResults.map((result) => ({
             ...result,
-            content: contentMap[result.id] || ""
+            content: contentMap[result.id] || "",
           }));
 
           // Prepare source documents for client
           const sourceDocs = prepareSourceDocs(results);
-          controller.enqueue(`event: docs\ndata: ${JSON.stringify({ sourceDocs })}\n\n`);
+          controller.enqueue(
+            `event: docs\ndata: ${JSON.stringify({ sourceDocs })}\n\n`
+          );
 
           // Create context
           const contextText = results
-            .filter(r => r.score >= RELEVANCE_THRESHOLD_GPT)
-            .map(r => r.content)
+            .filter((r) => r.score >= RELEVANCE_THRESHOLD_GPT)
+            .map((r) => r.content)
             .filter(Boolean)
             .join("\n\n");
 
           // Convert conversation history to OpenAI format
-          const conversationHistory = history.map(msg => ({
+          const conversationHistory = history.map((msg) => ({
             role: (msg.isUser ? "user" : "assistant") as MessageRole,
-            content: msg.content
+            content: msg.content,
           }));
 
           // Stream chat completion
@@ -93,7 +103,11 @@ export async function handleChatRequest(req: Request) {
             contextText,
             conversationHistory,
             (contentChunk) => {
-              controller.enqueue(`event: message\ndata: ${JSON.stringify({ content: contentChunk })}\n\n`);
+              controller.enqueue(
+                `event: message\ndata: ${JSON.stringify({
+                  content: contentChunk,
+                })}\n\n`
+              );
             }
           );
 
@@ -102,19 +116,22 @@ export async function handleChatRequest(req: Request) {
           controller.close();
         } catch (error) {
           console.error("Streaming error:", error);
-          controller.enqueue(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+          controller.enqueue(
+            `event: error\ndata: ${JSON.stringify({
+              error: error.message,
+            })}\n\n`
+          );
           controller.close();
         }
-      }
+      },
     });
 
     return new Response(stream, { headers: sseHeaders });
-
   } catch (error: any) {
     console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 }

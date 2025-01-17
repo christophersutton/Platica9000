@@ -1,4 +1,5 @@
 import { initializeIndexHost, INDEX_HOST, corsHeaders, sseHeaders } from "./config";
+import { processUpload } from "./controllers/attachments";
 import { handleChatRequest } from "./controllers/chat";
 
 // initializeIndexHost().catch(console.error);
@@ -23,6 +24,10 @@ const server = Bun.serve({
     const url = new URL(req.url);
     if (url.pathname === "/chat") {
       return handleChatRequest(req);
+    }
+    // Route: /process-file
+    if (url.pathname === "/processFile") {
+      return processUpload(req);
     }
 
     // Fallback for any other route
