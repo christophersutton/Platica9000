@@ -146,7 +146,7 @@ export function Secretary() {
     };
 
     try {
-      const response = await fetch(SERVER_URL, {
+      const response = await fetch(`${SERVER_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
