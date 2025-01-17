@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useSupabase } from '../../hooks/use-supabase';
 
 interface Channel {
@@ -20,8 +20,9 @@ export function ChannelList({ onChannelSelect }: ChannelListProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const navigate = useNavigate();
+  const { channelId } = useParams();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const { data, error } = await supabase
@@ -36,7 +37,7 @@ export function ChannelList({ onChannelSelect }: ChannelListProps) {
 
       setIsAdding(false);
       setNewChannelName("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding channel:", error.message);
     }
   };
@@ -78,48 +79,69 @@ export function ChannelList({ onChannelSelect }: ChannelListProps) {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-2">Channels</h2>
-      <div className="mb-4">
-        {isAdding ? (
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              type="text"
-              value={newChannelName}
-              onChange={(e) => setNewChannelName(e.target.value)}
-              placeholder="Channel name..."
-              className="flex-1 px-2 py-1 text-sm border rounded text-black"
-              autoFocus
-            />
+      <h2 className="text-xl font-bold mb-4">Channels</h2>
+      
+      {/* Channel List with Add Channel */}
+      <div className="space-y-0.5">
+        <ul className="space-y-0.5">
+          {channels.map((channel) => {
+            const isActive = channel.id === channelId;
+            return (
+              <li 
+                key={channel.id}
+                className={`group px-3 py-2 rounded cursor-pointer transition-all duration-150
+                  ${isActive 
+                    ? 'bg-gray-700 text-white' 
+                    : 'text-gray-300 hover:bg-gray-700/50'
+                  }`}
+                onClick={() => navigate(`/channels/${channel.id}`)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">#</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate">{channel.name}</p>
+                    {channel.description && (
+                      <p className="text-sm text-gray-500 truncate">{channel.description}</p>
+                    )}
+                  </div>
+                  {isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Add Channel Button/Form */}
+        <div className="px-1">
+          {isAdding ? (
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={newChannelName}
+                onChange={(e) => setNewChannelName(e.target.value)}
+                placeholder="Channel name..."
+                className="flex-1 px-2 py-1.5 text-sm border rounded bg-gray-900 text-white border-gray-700 focus:outline-none focus:border-gray-500"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                Add
+              </button>
+            </form>
+          ) : (
             <button
-              type="submit"
-              className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              onClick={() => setIsAdding(true)}
+              className="w-full px-3 py-2 text-sm border border-gray-700 rounded hover:bg-gray-700 transition-colors flex items-center gap-2 text-gray-300"
             >
-              Add
+              <span>+</span> Add Channel
             </button>
-          </form>
-        ) : (
-          <button
-            onClick={() => setIsAdding(true)}
-            className="w-full px-3 py-1 text-sm border rounded hover:bg-gray-700 flex items-center gap-2"
-          >
-            <span>+</span> Add Channel
-          </button>
-        )}
+          )}
+        </div>
       </div>
-      <ul>
-        {channels.map((channel) => (
-          <li 
-            key={channel.id}
-            className="px-3 py-2 hover:bg-gray-700 rounded cursor-pointer transition-colors duration-150 mb-1"
-            onClick={() => navigate(`/channels/${channel.id}`)}
-          >
-            <p className="text-gray-300">#{channel.name}</p>
-            {channel.description && (
-              <span className="text-gray-500 text-sm ml-2">({channel.description})</span>
-            )}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

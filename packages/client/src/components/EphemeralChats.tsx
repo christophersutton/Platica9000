@@ -67,11 +67,11 @@ export function EphemeralChatModal({
   });
 
 
-  // When we detect the other user has left, start a 10-second countdown
+  // When we detect the other user has left, start a 6-second countdown
   useEffect(() => {
     if (otherUserLeft) {
       setShake(true);
-      setCountdown(10);
+      setCountdown(6);
     } else {
       setShake(false);
       setCountdown(null);
